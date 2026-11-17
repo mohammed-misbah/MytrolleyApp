@@ -243,10 +243,16 @@ known milestone-1 gap, not an implicit claim of complete browser hardening.
 - `ADMIN_ALLOWED_IPS` optionally restricts admin paths by exact IP/CIDR; invalid
   entries fail configuration parsing.
 - The admin URL is configurable; production rejects the default `admin/` path.
-- OpenAPI schema and Swagger UI require `IsAdminUser` (staff) in every
-  environment.
+- OpenAPI schema and Swagger UI require `IsAdminUser` (staff) in production.
 - Documentation URLs are registered only when `ENABLE_API_DOCS=true`.
   Development enables them; production defaults to disabled.
+- `API_DOCS_PUBLIC` defaults to false. Development may set it to true so the
+  docs can be opened anonymously for login testing; production forces it to
+  false. This flag changes documentation visibility only, not API permissions
+  or CSRF enforcement.
+- The project Swagger script reads the current `csrftoken` cookie for every
+  unsafe request, so login/logout rotation does not leave a stale token in the
+  page.
 - Documentation error responses are forced through the JSON renderer so the
   error contract stays consistent even on drf-spectacular views.
 
@@ -284,6 +290,7 @@ known milestone-1 gap, not an implicit claim of complete browser hardening.
 | Throttle table growth | `prune_login_throttles` command; schedule it operationally |
 | Secret rotation breaks sessions/throttle keys | Expected; rotate during a maintenance window and prune throttle rows |
 | OneDrive-synced workspace | `backend/.env` is gitignored but may still sync to cloud storage; keep production secrets out of synced local files |
+| Public development docs | Development defaults to anonymous docs so a fresh login can be tested; bind the dev server to localhost and set `API_DOCS_PUBLIC=false` if that exposure is unwanted |
 | No malware scanning for future images | Explicitly deferred to milestone 3; design requires validation, re-encoding and scanning |
 | Admin depends on staff flag | Staff is necessary but not sufficient for business permissions; admin access should also be network-restricted |
 | No load/concurrency test of throttle | Transactional locking is implemented; run a concurrency test before high-traffic deployment |

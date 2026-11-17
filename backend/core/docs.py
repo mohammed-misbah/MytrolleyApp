@@ -11,10 +11,22 @@ from __future__ import annotations
 
 from typing import Any
 
+from django.conf import settings
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from rest_framework.permissions import AllowAny, BasePermission, IsAdminUser
 from rest_framework.renderers import JSONRenderer
 from rest_framework.request import Request
 from rest_framework.response import Response
+
+
+def docs_permission_classes() -> list[type[BasePermission]]:
+    """Return the documentation permission policy for this environment.
+
+    Production always sets ``API_DOCS_PUBLIC`` to false, so the schema and
+    Swagger UI remain staff-only there. Development defaults it to true so the
+    anonymous login flow can be tested without first using Django admin.
+    """
+    return [AllowAny] if settings.API_DOCS_PUBLIC else [IsAdminUser]
 
 
 class JsonErrorDocsMixin:
@@ -40,4 +52,9 @@ class ApiSchemaView(JsonErrorDocsMixin, SpectacularAPIView):
 
 
 class ApiDocsView(JsonErrorDocsMixin, SpectacularSwaggerView):
-    """Swagger UI endpoint with JSON error envelopes."""
+    """Swagger UI endpoint with JSON error envelopes and dynamic CSRF support."""
+
+    # The bundled script embeds the CSRF token at render time, which is stale
+    # after login/logout rotation. The project template reads the current
+    # cookie for every unsafe request instead.
+    template_name_js = "core/swagger_ui.js"

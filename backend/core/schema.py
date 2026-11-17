@@ -32,9 +32,10 @@ CSRF_HEADER_PARAMETER = OpenApiParameter(
     location=OpenApiParameter.HEADER,
     required=True,
     description=(
-        "Masked value of the csrftoken cookie returned by "
-        "GET /api/v1/auth/csrf/. Required for login, logout and every "
-        "authenticated unsafe request."
+        "CSRF token for the request. Use the masked token returned by "
+        "GET /api/v1/auth/csrf/ or the value of the csrftoken cookie; both "
+        "are accepted and they are not expected to be identical. Required "
+        "for login, logout and every authenticated unsafe request."
     ),
 )
 

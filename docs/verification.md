@@ -54,7 +54,7 @@ python -m pip_audit -r requirements\development.txt
 | `ruff check .` | **Passed** — all checks passed |
 | `ruff format --check .` | **Passed** — 58 files already formatted |
 | `mypy .` | **Passed** — no issues in 45 source files |
-| `pytest --cov` | **111 passed**, **94.42%** total coverage (gate: 85%) |
+| `pytest --cov` | **112 passed**, **94.44%** total coverage (gate: 85%) |
 | `makemigrations --check --dry-run` | **Passed** — “No changes detected” |
 | `spectacular --validate` | **Passed** — 0 errors, 0 warnings |
 | `pip_audit` production | **Passed** — no known vulnerabilities (exit 0) |
@@ -142,6 +142,58 @@ non-interactive/IE-parsing error even though the session was invalidated. The
 test was repeated with `-UseBasicParsing`; the recorded result above is from
 that clean run.
 
+## Swagger UI browser verification
+
+Date: **17 November 2026**. Tool: the in-app browser.
+
+Environment: development settings (`config.settings.development`),
+`ENABLE_API_DOCS=true`, `API_DOCS_PUBLIC=true`, local PostgreSQL, and a
+dedicated server on `http://127.0.0.1:8021/` with a clean cookie jar. The normal
+development URL is `http://127.0.0.1:8000/api/v1/docs/`; port 8021 was used to
+avoid cookies from an existing server.
+
+A single-use staff user was created for the test and deleted afterwards. No
+password, session cookie, or CSRF token values are recorded here.
+
+Steps performed in the page:
+
+1. Opened `/api/v1/docs/` anonymously.
+2. Expanded **Authentication**.
+3. Executed `GET /api/v1/auth/csrf/`.
+4. Executed `POST /api/v1/auth/login/` with the temporary credentials.
+5. Executed `GET /api/v1/auth/me/`.
+6. Executed `POST /api/v1/auth/logout/`.
+7. Executed `GET /api/v1/auth/me/` again.
+
+Observed:
+
+| Step | Observed |
+|---|---|
+| Anonymous docs page | `200`; 6 operations rendered |
+| CSRF bootstrap | `200`; `csrftoken` cookie set |
+| Login | `200`; user returned with `Administrator`; exactly one `X-CSRFToken` header (32 chars); cookies preserved |
+| Current user | `200`; same user |
+| Logout | `204`; cookies preserved |
+| Current user after logout | `401 UNAUTHENTICATED` |
+
+CSRF rotation was checked with SHA-256 hashes rather than token values: the
+hashes before login, after login, and after logout were all different. The
+required `X-CSRFToken` field in Swagger was filled automatically from the
+current cookie after each rotation, and the request interceptor replaced it on
+every unsafe request. The session cookie is `HttpOnly`, so it is correctly not
+visible to JavaScript.
+
+Two problems were found and fixed during this verification:
+
+1. The stock drf-spectacular script embedded the token at page-render time, so
+   it went stale after login/logout rotation. The project script now reads the
+   current cookie for every unsafe request.
+2. Sending the Swagger parameter and the interceptor header under different
+   casing produced one combined invalid value and `403 CSRF_FAILED`. The
+   interceptor now replaces the existing case-insensitive header key.
+
+The full flow was repeated after the fixes and passed.
+
 ## Test coverage map
 
 | Area | Test file | Representative checks |
@@ -154,7 +206,7 @@ that clean run.
 | Health | `tests/test_health.py` | Live query count 0, readiness query, generic 503, no driver details |
 | Config/security | `tests/test_config.py` | Env parsing, origins, admin path, IP networks, secret handling, production validation |
 | Commands | `tests/test_commands.py` | Role seeding, no default account, interactive admin, weak/mismatched passwords, pruning |
-| Security surfaces | `tests/test_security_surfaces.py` | Admin/docs staff-only, admin IP allowlist, log redaction, password not logged |
+| Security surfaces | `tests/test_security_surfaces.py` | Admin/docs permission modes, custom Swagger CSRF script, admin IP allowlist, log redaction, password not logged |
 | Security utilities | `tests/test_security_utils.py` | Proxy IP trust, malformed forwarded headers, Django JSON handlers, non-API CSRF HTML |
 | Parser boundaries | `tests/test_parsers.py` | Content-Length bounds, oversized body, empty/non-UTF-8/malformed JSON |
 
@@ -162,7 +214,8 @@ that clean run.
 
 These are honest limitations, not passed checks:
 
-1. **Browser/React end-to-end flow.** Milestone 1 deliberately has no frontend.
+1. **React frontend end-to-end flow.** Milestone 1 deliberately has no
+   frontend. The Swagger UI browser flow is verified separately above.
 2. **Load, concurrency or soak testing.** Throttle locking is transactional, but
    no high-concurrency stress test was run.
 3. **Production infrastructure.** No TLS proxy, HSTS deployment, CSP, database

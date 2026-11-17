@@ -26,6 +26,48 @@ browser because the client copies it into the `X-CSRFToken` header.
 
 Login, logout and `me` responses use `Cache-Control: no-store`.
 
+## Test with Swagger UI
+
+The existing drf-spectacular schema and Swagger UI are served at:
+
+- Schema: `http://127.0.0.1:8000/api/v1/schema/`
+- Swagger UI: `http://127.0.0.1:8000/api/v1/docs/`
+
+Development registers both routes and sets `API_DOCS_PUBLIC=true`, so the page
+can be opened anonymously and the login flow tested without first using Django
+admin. Production keeps both routes staff-only and disabled unless
+`ENABLE_API_DOCS=true`; `API_DOCS_PUBLIC` is forced to false there.
+
+The project overrides drf-spectacular's Swagger script with
+`backend/core/templates/core/swagger_ui.js`. That script:
+
+- fetches `/api/v1/auth/csrf/` once on page load;
+- reads the current `csrftoken` cookie for every unsafe request and sets
+  `X-CSRFToken`, replacing any value already present under different casing;
+- fills the documented required `X-CSRFToken` field so Swagger UI validation
+  passes without manual copying;
+- re-reads the cookie after every response, covering login and logout rotation.
+
+Exact browser steps:
+
+1. Open the Swagger UI URL and expand **Authentication**.
+2. `GET /api/v1/auth/csrf/` → **Execute**. Expect `200` and a `csrfToken` body.
+3. `POST /api/v1/auth/login/` → **Execute** with
+   `{"username": "your-username", "password": "your-password"}`. Expect `200`.
+4. `GET /api/v1/auth/me/` → **Execute**. Expect `200` with your user.
+5. `POST /api/v1/auth/logout/` → **Execute**. Expect `204`.
+6. `GET /api/v1/auth/me/` → **Execute** again. Expect `401 UNAUTHENTICATED`.
+
+If JavaScript is disabled or the script fails to load, paste the `csrfToken`
+from step 2 (or the `csrftoken` cookie value) into the `X-CSRFToken` field
+before each unsafe request, and repeat step 2 after login and logout. The
+returned masked token and the cookie value are both accepted; they are not
+expected to be identical.
+
+To keep local documentation staff-only, set `API_DOCS_PUBLIC=false` in
+`backend/.env` and restart the server. This changes documentation visibility
+only; it does not change API permissions or disable CSRF.
+
 ## Endpoints
 
 ### `GET /api/v1/auth/csrf/`
@@ -112,14 +154,17 @@ Responses use `Cache-Control: no-store`.
 
 ### Documentation and admin
 
-- `GET /api/v1/schema/` — OpenAPI 3 schema, staff users only.
-- `GET /api/v1/docs/` — Swagger UI, staff users only.
+- `GET /api/v1/schema/` — OpenAPI 3 schema.
+- `GET /api/v1/docs/` — Swagger UI.
 - `GET /{ADMIN_URL}` — Django admin, staff users only, optionally restricted
   by `ADMIN_ALLOWED_IPS`.
 
-Production disables documentation unless `ENABLE_API_DOCS=true`, and the
-documentation views remain staff-only in every environment. The admin path is
-configurable and production rejects the default `admin/` path.
+In production both documentation routes require a staff user: `API_DOCS_PUBLIC`
+is forced to false, and the routes exist only when `ENABLE_API_DOCS=true`. In
+development `ENABLE_API_DOCS` defaults to true and `API_DOCS_PUBLIC` defaults to
+true so the anonymous login flow can be tested. Set `API_DOCS_PUBLIC=false` in
+`backend/.env` and restart the server to require staff access locally. The admin
+path is configurable and production rejects the default `admin/` path.
 
 ## Error envelope and codes
 

@@ -54,8 +54,10 @@ class CsrfBootstrapView(APIView):
         auth=[],
         summary="Bootstrap CSRF token",
         description=(
-            "Sets the `csrftoken` cookie and returns the same masked token. "
-            "Call this before login and again after login/logout because those "
+            "Sets the `csrftoken` cookie and returns a masked CSRF token. The "
+            "returned token and the cookie value are both accepted in "
+            "`X-CSRFToken`; they are not expected to be identical. Call this "
+            "before login and again after login/logout because those "
             "operations rotate the token."
         ),
         responses={200: CsrfBootstrapSerializer},

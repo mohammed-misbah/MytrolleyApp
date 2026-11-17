@@ -53,6 +53,7 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if TRUST_PROXY_HEA
 # Production docs are disabled unless explicitly enabled, and are always
 # staff-only. Restrict them at the network layer as well when enabled.
 ENABLE_API_DOCS = get_bool("ENABLE_API_DOCS", default=False)
+API_DOCS_PUBLIC = False
 
 DB_SSLMODE = get_sslmode("DB_SSLMODE", default="")
 

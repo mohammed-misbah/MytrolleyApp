@@ -10,7 +10,7 @@ Swift, product CRUD, image uploads or deployment.
 - **Location:** `C:\Users\user\OneDrive\Documents\MyTrolleyApp\`
 - **Runtime settings:** `config.settings.development` (default) and `config.settings.production`
 - **Test settings:** `config.settings.test`
-- **API docs:** staff-only OpenAPI schema and Swagger UI (`/api/v1/schema/`, `/api/v1/docs/`)
+- **API docs:** OpenAPI schema and Swagger UI (`/api/v1/schema/`, `/api/v1/docs/`); staff-only in production, anonymously reachable by default in development
 
 ## Repository layout
 
@@ -127,8 +127,8 @@ All API responses are JSON. Errors use one envelope:
 | GET | `/api/v1/auth/me/` | Authenticated | Safe current-user profile, roles, permissions |
 | GET | `/api/v1/health/live/` | Public | Process liveness; no database access |
 | GET | `/api/v1/health/ready/` | Public | Bounded PostgreSQL readiness query |
-| GET | `/api/v1/schema/` | Staff only | OpenAPI 3 schema |
-| GET | `/api/v1/docs/` | Staff only | Swagger UI |
+| GET | `/api/v1/schema/` | Staff only (development: public) | OpenAPI 3 schema |
+| GET | `/api/v1/docs/` | Staff only (development: public) | Swagger UI |
 | any | `/{ADMIN_URL}` | Staff only | Django admin |
 
 Authentication uses Django database-backed sessions, not JWT. The browser must
@@ -136,6 +136,33 @@ fetch the CSRF bootstrap, send `X-CSRFToken` for login/logout and every
 authenticated unsafe request, and re-fetch the token after login or logout
 because both rotate it. See [docs/api.md](docs/api.md) for request examples and
 all documented error codes.
+
+### Test the auth API with Swagger UI
+
+Development exposes the existing drf-spectacular Swagger UI without requiring a
+staff login, so a genuinely anonymous login can be tested. Start the server and
+open:
+
+```text
+http://127.0.0.1:8000/api/v1/docs/
+```
+
+Then:
+
+1. Expand **Authentication**.
+2. `GET /api/v1/auth/csrf/` → **Execute**. This sets the `csrftoken` cookie.
+3. `POST /api/v1/auth/login/` → **Execute** with
+   `{"username": "your-username", "password": "your-password"}`. Leave the
+   `X-CSRFToken` field alone; the project Swagger script fills it from the
+   current cookie and replaces it on every unsafe request.
+4. `GET /api/v1/auth/me/` → **Execute**. Expect `200` and your user.
+5. `POST /api/v1/auth/logout/` → **Execute**. Expect `204`.
+6. Run `me` again. Expect `401 UNAUTHENTICATED`.
+
+The script re-reads the cookie after login and logout rotation, so no manual
+token copying is needed. To require staff access locally, set
+`API_DOCS_PUBLIC=false` in `backend/.env` and restart the server. Production
+always forces it to false.
 
 ## Quality gates
 
@@ -154,7 +181,7 @@ python -m pip_audit -r requirements\production.txt
 
 Test settings use PostgreSQL, not SQLite. The default test database name is
 `test_<DB_NAME>`; override it with `TEST_DB_NAME`. Coverage fails below **85%**.
-Latest local verification: **111 tests passed, 94.42% total coverage**. See
+Latest local verification: **112 tests passed, 94.44% total coverage**. See
 [verification](docs/verification.md) for the exact environment and commands.
 
 Production configuration is validated at startup. A representative deploy

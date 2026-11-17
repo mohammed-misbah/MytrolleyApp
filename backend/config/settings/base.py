@@ -222,16 +222,22 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": (
         "Milestone 1 authentication, authorization and health API.\n\n"
         "Authentication uses Django database-backed sessions and a CSRF "
-        "cookie. Fetch `/api/v1/auth/csrf/`, read the `csrftoken` cookie, then "
-        "send its masked value in the `X-CSRFToken` header for login, logout "
-        "and every authenticated unsafe request. Login rotates both the "
-        "session and CSRF token; clients must re-fetch the CSRF bootstrap "
-        "after login and logout. Errors use the documented `error` envelope."
+        "cookie. Fetch `/api/v1/auth/csrf/` to set the `csrftoken` cookie; "
+        "send either the masked token from the response or the cookie value "
+        "in `X-CSRFToken` for login, logout and every authenticated unsafe "
+        "request. The two values are not expected to be identical. Login and "
+        "logout rotate the token, so clients re-read the cookie (Swagger UI "
+        "does this automatically). Errors use the documented `error` envelope."
     ),
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_REQUEST": True,
     "SORT_OPERATIONS": False,
     "SCHEMA_PATH_PREFIX": "/api/v1",
+    "SWAGGER_UI_SETTINGS": {
+        "withCredentials": True,
+        "tryItOutEnabled": True,
+        "deepLinking": True,
+    },
 }
 
 MAX_JSON_BODY_BYTES = get_int(
@@ -290,6 +296,9 @@ HEALTH_DB_STATEMENT_TIMEOUT_MS = get_int(
 ADMIN_URL = get_admin_path()
 ADMIN_ALLOWED_IPS = get_networks("ADMIN_ALLOWED_IPS")
 ENABLE_API_DOCS = get_bool("ENABLE_API_DOCS", default=False)
+# Development enables this so Swagger can be opened anonymously for login
+# testing. Production forces it to false, so the docs remain staff-only there.
+API_DOCS_PUBLIC = get_bool("API_DOCS_PUBLIC", default=False)
 
 # ---------------------------------------------------------------------------
 # Logging: structured JSON to stdout, no request bodies or credentials.

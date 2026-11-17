@@ -38,12 +38,12 @@ Swift) can rely on explicit contracts.
 | Component | Responsibility |
 |---|---|
 | `config/settings/base.py` | Shared settings, security headers, sessions/CSRF, DRF defaults, limits, logging |
-| `config/settings/development.py` | Local `DEBUG=True`, local hosts, docs URL registration |
+| `config/settings/development.py` | Local `DEBUG=True`, local hosts, docs URL registration, optional anonymous docs for login testing |
 | `config/settings/production.py` | Secure cookies, HTTPS redirect, HSTS, explicit hosts, startup validation |
 | `config/settings/test.py` | PostgreSQL tests, deterministic fast hashing, docs enabled |
 | `config/env.py` | Strict env parsing; never renders secret values |
 | `config/validation.py` | Pure production configuration validation |
-| `config/urls.py` | Health, auth, staff-only schema/docs, configurable admin |
+| `config/urls.py` | Health, auth, schema/docs with staff-only production access, configurable admin |
 | `config/views.py` | Django-level JSON 400/403/404/500 and CSRF failure handling |
 | `core/middleware.py` | Request ID, safe request logging, optional admin IP allowlist |
 | `core/exception_handler.py` | Normalizes DRF/Django/unexpected exceptions to one envelope |
@@ -196,9 +196,11 @@ client must copy it into `X-CSRFToken`.
    environment. Production requires TLS (`DB_SSLMODE=require` or stricter) and
    a private network path. The application role should own only the application
    database and should not be a PostgreSQL superuser.
-4. **Staff ↔ admin/docs.** Django admin and Swagger are staff-only. The admin
-   path is non-default in production and can be restricted by source network.
-   Documentation is disabled by default in production.
+4. **Staff ↔ admin/docs.** Django admin is staff-only. The admin path is
+   non-default in production and can be restricted by source network.
+   Swagger/schema are staff-only and disabled by default in production.
+   Development may expose the docs anonymously (`API_DOCS_PUBLIC=true`) to test
+   the session/CSRF login flow; this changes documentation visibility only.
 5. **Future object storage.** Product images will cross into object storage.
    That boundary needs content validation, malware scanning, re-encoding,
    signed URLs and least-privilege bucket credentials.
@@ -323,7 +325,7 @@ erDiagram
 
 | Milestone | Scope | Exit criteria |
 |---|---|---|
-| 1 (current) | Auth, roles, health, errors, config, tests, CI, docs | Green lint/type/tests/coverage; staff-only docs; verified auth flow |
+| 1 (current) | Auth, roles, health, errors, config, tests, CI, docs | Green lint/type/tests/coverage; staff-only production docs; development Swagger login testing; verified auth flow |
 | 2 | Categories/products, validation, permissions, audit, tests | CRUD contract, authorization matrix, migration and API tests |
 | 3 | Image upload/storage abstraction, scanning/re-encoding, signed access | Malicious/oversized uploads rejected; storage credentials least privilege |
 | 4 | Stores, price observations, shopping lists, totals | Decimal money, history, concurrency and permission tests |

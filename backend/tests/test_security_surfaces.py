@@ -8,8 +8,10 @@ import sys
 
 import pytest
 from django.test import Client, override_settings
+from rest_framework.permissions import AllowAny, IsAdminUser
 
 from core.context import reset_request_id, set_request_id
+from core.docs import docs_permission_classes
 from core.logging import JsonFormatter
 from tests.conftest import login, make_user
 
@@ -42,6 +44,16 @@ def test_admin_ip_allowlist_blocks_other_networks(client: Client) -> None:
     assert allowed.status_code == 302
 
 
+def test_docs_permission_mode_is_configurable(settings) -> None:
+    assert settings.API_DOCS_PUBLIC is False
+
+    with override_settings(API_DOCS_PUBLIC=True):
+        assert docs_permission_classes() == [AllowAny]
+
+    with override_settings(API_DOCS_PUBLIC=False):
+        assert docs_permission_classes() == [IsAdminUser]
+
+
 @pytest.mark.django_db
 def test_openapi_documentation_is_staff_only(client: Client, roles) -> None:
     anonymous = client.get("/api/v1/schema/")
@@ -55,6 +67,11 @@ def test_openapi_documentation_is_staff_only(client: Client, roles) -> None:
 
     docs_response = client.get("/api/v1/docs/")
     assert docs_response.status_code == 200
+    # The project script replaces the stock render-time token with per-request
+    # cookie reading and keeps the required X-CSRFToken field populated.
+    assert b"bootstrapCsrf" in docs_response.content
+    assert b"syncCsrfHeaderInputs" in docs_response.content
+    assert b"responseInterceptor" in docs_response.content
 
 
 def test_json_formatter_includes_structured_fields_and_traceback() -> None:
