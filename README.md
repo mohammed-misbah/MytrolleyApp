@@ -171,10 +171,9 @@ $env:ADMIN_URL = "ops-admin/"
 python manage.py check --deploy
 ```
 
-Milestone 1 was verified against an isolated PostgreSQL 14 cluster because the
-locally installed PostgreSQL service required credentials that were not
-available to the agent. See [docs/verification.md](docs/verification.md) for
-exact commands, results and the steps still required against your own database.
+Milestone 1 was verified against the local PostgreSQL 14.18 service on
+`127.0.0.1:5432`, and the GitHub Actions `backend` workflow passed. See
+[docs/verification.md](docs/verification.md) for exact commands and results.
 
 ## Documentation
 

@@ -18,31 +18,25 @@ successful check that was not executed.
 | drf-spectacular | 0.30.0 |
 | psycopg | 3.3.9 |
 | PostgreSQL | 14.18 |
-| Test database | `test_mytrolley` on an isolated local cluster |
+| Test database | `test_mytrolley` on the local PostgreSQL 14.18 service |
 | Settings | `config.settings.test` for pytest; `config.settings.production` for deploy checks |
+| CI | GitHub Actions `backend` workflow, run `44123969812` |
 
-### Why an isolated PostgreSQL cluster was used
+### Database used
 
-The pre-installed PostgreSQL 14 Windows service on `127.0.0.1:5432` required
-credentials that were not available to the agent. Direct connection attempts
-failed with password authentication errors. To avoid inventing results or
-altering the user's existing database service, verification used a separate,
-temporary PostgreSQL 14 cluster under:
+Verification ran against the local PostgreSQL 14.18 service on
+`127.0.0.1:5432`, using the role, database and password configured in the
+gitignored `backend\.env`. Migrations were applied and `seed_roles` was run
+against that database.
 
-```text
-C:\Users\user\AppData\Local\Temp\opencode\mytrolley-pg
-```
-
-It listened on a non-default local port and used a verification-only role and
-database. It is **not** part of the deliverable and must not be used as the
-project's production database. The project itself defaults to
-`127.0.0.1:5432`; you must supply your own local credentials in
-`backend\.env`.
+An earlier pass used a temporary PostgreSQL cluster because the local
+credentials were not yet available. That cluster was stopped and removed. The
+local service is now the verified database and is not part of the repository.
 
 ## Automated results
 
 Command run from `C:\Users\user\OneDrive\Documents\MyTrolleyApp\backend`, with
-the `.venv` interpreter and the test database environment variables set:
+the `.venv` interpreter and `backend\.env` loaded:
 
 ```powershell
 python -m ruff check .
@@ -100,10 +94,24 @@ System check identified no issues (0 silenced).
 The earlier drf-spectacular warning on `LogoutView` was fixed by declaring
 `request=None` in its schema extension.
 
+## CI result
+
+The repository was pushed to
+`https://github.com/mohammed-misbah/MytrolleyApp` and the `backend` workflow
+completed successfully for the milestone commit:
+
+- Run: `https://github.com/mohammed-misbah/MytrolleyApp/actions/runs/44123969812`
+- Commit: `19d9b55aa3aa0de53df72ae38ee3d94bf3fc0e12`
+- Result: **success**
+
+All steps passed: Ruff lint, Ruff format check, mypy, migration drift,
+OpenAPI validation, production deploy check, PostgreSQL tests with coverage,
+both dependency audits, and coverage artifact upload.
+
 ## Live HTTP smoke test
 
 A real Django development server was started on `127.0.0.1:8011` against the
-verification database. A temporary Administrator user was created for the
+local PostgreSQL database. A temporary Administrator user was created for the
 smoke test and deleted afterwards. The server was stopped after the test.
 
 Observed response values:
@@ -154,26 +162,23 @@ that clean run.
 
 These are honest limitations, not passed checks:
 
-1. **The user's existing PostgreSQL 14 service.** Credentials were unavailable,
-   so no migration or test ran against `127.0.0.1:5432` with the user's real
-   role/database.
-2. **GitHub Actions execution.** The workflow exists but was not pushed to a
-   repository, so the remote CI run has not happened.
-3. **Browser/React end-to-end flow.** Milestone 1 deliberately has no frontend.
-4. **Load, concurrency or soak testing.** Throttle locking is transactional, but
+1. **Browser/React end-to-end flow.** Milestone 1 deliberately has no frontend.
+2. **Load, concurrency or soak testing.** Throttle locking is transactional, but
    no high-concurrency stress test was run.
-5. **Production infrastructure.** No TLS proxy, HSTS deployment, CSP, database
+3. **Production infrastructure.** No TLS proxy, HSTS deployment, CSP, database
    TLS certificate, backup/restore or monitoring was provisioned.
-6. **Image upload security.** Deferred to a later milestone.
-7. **Swift client.** Deferred.
+4. **Image upload security.** Deferred to a later milestone.
+5. **Swift client.** Deferred.
 
-## Run the same checks on your own PostgreSQL
+## Reproduce the checks
 
-From `C:\Users\user\OneDrive\Documents\MyTrolleyApp\backend`:
+The same commands can be reproduced from
+`C:\Users\user\OneDrive\Documents\MyTrolleyApp\backend`:
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
 
+# backend\.env is already configured; copy the template only on a new machine.
 Copy-Item .env.example .env
 notepad .env
 # Set DJANGO_SECRET_KEY (50+ random characters) and your real DB_* values.
@@ -222,8 +227,8 @@ Invoke-RestMethod http://127.0.0.1:8000/api/v1/health/ready/
 - The smoke-test development server was stopped.
 - The generated OpenAPI file used for validation was removed
   (`openapi.yaml` is gitignored and reproducible).
-- The verification PostgreSQL cluster was stopped and its temporary data
-  directory removed after verification. It was separate from the project and
-  contained no deliverable credentials or data.
+- The earlier temporary PostgreSQL cluster was stopped and its data directory
+  removed. The local PostgreSQL service and application database are retained.
+- The reserved `frontend/` directory now contains `.gitkeep` so Git preserves it.
 - The project's `.venv` was recreated after the move so its Windows paths point
   to the new location.

@@ -287,7 +287,7 @@ known milestone-1 gap, not an implicit claim of complete browser hardening.
 | No malware scanning for future images | Explicitly deferred to milestone 3; design requires validation, re-encoding and scanning |
 | Admin depends on staff flag | Staff is necessary but not sufficient for business permissions; admin access should also be network-restricted |
 | No load/concurrency test of throttle | Transactional locking is implemented; run a concurrency test before high-traffic deployment |
-| Local PostgreSQL service credentials unavailable | Verified on an isolated PostgreSQL 14 cluster; run the same checks against your real service |
+| Local PostgreSQL credentials | Stored only in gitignored `backend/.env`; verified against PostgreSQL 14.18 on `127.0.0.1:5432` |
 
 ## Secure deployment checklist
 

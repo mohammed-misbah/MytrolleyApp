@@ -25,11 +25,11 @@ recorded check; **Deferred** = intentionally outside milestone 1.
 | R-18 | Central error envelope with code/message/fields/request_id; consistent 401/403; no leaks | `core/errors.py`, `core/exception_handler.py`, `config/views.py`, request ID middleware | `tests/test_errors.py`, `tests/test_exception_mapping.py`, `tests/test_security_utils.py` | Verified |
 | R-19 | Health `/live/` no DB and `/ready/` bounded query with generic 503 | `core/health.py`, `core/views.py`, `core/urls.py` | `tests/test_health.py` (query count, failure, no-store, no details) | Verified |
 | R-20 | Ruff + type checking | `pyproject.toml`; Ruff E/F/W/I/B/UP/S/SIM/DJ; mypy with Django plugin | `ruff check .` → clean; `ruff format --check .` → clean; `mypy .` → 45 files, no issues | Verified |
-| R-21 | pytest/pytest-django/coverage against PostgreSQL; minimum 85%; critical auth/authz tests | `backend/tests/`, coverage config, PostgreSQL test settings | 111 passed; 94.42% total coverage; coverage gate enforced at 85% | Verified |
+| R-21 | pytest/pytest-django/coverage against PostgreSQL; minimum 85%; critical auth/authz tests | `backend/tests/`, coverage config, PostgreSQL test settings | 111 passed; 94.42% total coverage; verified against local PostgreSQL 14.18 and in CI | Verified |
 | R-22 | drf-spectacular OpenAPI docs and validation | `SPECTACULAR_SETTINGS`, staff-only views, `extend_schema` on endpoints | `manage.py spectacular --validate --file openapi.yaml` — errors 0, warnings 0 | Verified |
-| R-23 | CI with PostgreSQL, migration drift, lint/type, coverage, dependency audit | `.github/workflows/ci.yml` | Workflow defined; local equivalents executed | Verified locally; CI run pending push |
+| R-23 | CI with PostgreSQL, migration drift, lint/type, coverage, dependency audit | `.github/workflows/ci.yml` | GitHub Actions run `44123969812` completed successfully; all workflow steps passed | Verified |
 | R-24 | Document future product/image/catalog/store design, ERD, trust boundaries, role matrix, milestone plan | `docs/architecture.md`, `docs/security.md`, `docs/api.md` | Manual review | Verified |
-| R-25 | Run checks where possible, state blockers, provide exact PowerShell | `docs/verification.md`; commands in README | Live HTTP smoke + all local commands; installed-service limitation documented | Verified |
+| R-25 | Run checks where possible, state blockers, provide exact PowerShell | `docs/verification.md`; commands in README | Live HTTP smoke, local PostgreSQL verification and CI run documented | Verified |
 | R-26 | Do not implement React/Swift/product CRUD/images/deployment | `frontend/` empty; no product routers/models | Directory inspection; only auth/health routes exist | Deferred by scope |
 | R-27 | Future milestones: catalog, images, stores, shopping list, clients | Design direction and rules in `docs/architecture.md` | Manual review | Deferred by scope |
 
