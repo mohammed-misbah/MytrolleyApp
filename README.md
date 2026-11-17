@@ -1,0 +1,205 @@
+# MyTrolley — Milestone 1 Backend Foundation
+
+Secure, documented and tested backend foundation for the MyTrolley technical
+assessment. Milestone 1 delivers Django REST Framework authentication,
+role-based authorization, operational health endpoints and the engineering
+baseline for later product work. It deliberately does **not** implement React,
+Swift, product CRUD, image uploads or deployment.
+
+- **Stack:** Python 3.14, Django 5.2 LTS, Django REST Framework, PostgreSQL 14+
+- **Location:** `C:\Users\user\OneDrive\Documents\MyTrolleyApp\`
+- **Runtime settings:** `config.settings.development` (default) and `config.settings.production`
+- **Test settings:** `config.settings.test`
+- **API docs:** staff-only OpenAPI schema and Swagger UI (`/api/v1/schema/`, `/api/v1/docs/`)
+
+## Repository layout
+
+```text
+MyTrolleyApp/
+├── backend/
+│   ├── config/                 Django settings, URLs, env validation, error views
+│   ├── accounts/               custom user, roles, auth API, login throttling
+│   ├── core/                   error envelope, middleware, health, parsers, docs
+│   ├── tests/                  pytest integration and unit tests
+│   ├── requirements/           pinned base/development/production dependencies
+│   ├── .env.example            placeholders only; copy to .env
+│   ├── manage.py
+│   └── pyproject.toml          Ruff, mypy, pytest and coverage configuration
+├── docs/
+│   ├── api.md                  endpoint contracts and CSRF flow
+│   ├── architecture.md         components, ERD, trust boundaries, future design
+│   ├── requirements-traceability.md
+│   ├── security.md             threat model and controls
+│   └── verification.md         commands, results and known limitations
+├── frontend/                   reserved; intentionally empty in milestone 1
+├── .github/workflows/ci.yml
+├── .gitignore
+└── README.md
+```
+
+The pre-existing Node diet-planner project in `Default Project` is untouched and
+unrelated to this backend.
+
+## Prerequisites
+
+- Python **3.14** on `PATH`
+- PostgreSQL **14 or newer** running locally
+- PowerShell 7 or Windows PowerShell 5.1
+- A PostgreSQL login that can create the application database
+
+## Local setup (Windows / PowerShell)
+
+```powershell
+cd C:\Users\user\OneDrive\Documents\MyTrolleyApp\backend
+
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements\development.txt
+
+Copy-Item .env.example .env
+notepad .env    # set DJANGO_SECRET_KEY, DB_PASSWORD and other local values
+```
+
+Create the database and role once. Replace the placeholder password with your
+own local value; do not commit it.
+
+```sql
+-- Run in psql as a PostgreSQL administrator:
+CREATE ROLE mytrolley_app LOGIN PASSWORD 'replace-with-a-local-password';
+CREATE DATABASE mytrolley OWNER mytrolley_app;
+```
+
+Then run migrations and provision the two assessment roles plus your own
+initial administrator. There is no default account and no public registration.
+
+```powershell
+python manage.py migrate
+python manage.py seed_roles
+python manage.py create_initial_admin
+python manage.py runserver
+```
+
+`create_initial_admin` prompts for username, email and password with
+`getpass`; passwords are never accepted as command-line arguments.
+
+Health checks:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/v1/health/live/
+Invoke-RestMethod http://127.0.0.1:8000/api/v1/health/ready/
+```
+
+## Roles and permissions
+
+| Role | Group | Business permissions | Intended use |
+|---|---|---|---|
+| Administrator | `Administrator` | `accounts.manage_users`, `accounts.manage_catalog` | Full assessment administration |
+| Data-entry | `DataEntry` | `accounts.manage_catalog` | Catalog/product data entry only |
+| Authenticated but ungrouped | — | none | Denied by business-permission checks |
+
+Roles are Django groups, permissions are Django permissions, and seeding is
+idempotent. `accounts.manage_users` and `accounts.manage_catalog` are the only
+business permissions exposed in the current API surface. Milestone 1 does not
+provide user-management or product endpoints; the permission class and test
+URLs prove the authorization pattern for later milestones.
+
+## API surface
+
+All API responses are JSON. Errors use one envelope:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Please correct the supplied values.",
+    "fields": {"username": ["This field is required."]},
+    "request_id": "5f0c2d9a7b1e4c3a8d6f0e2b4c6a8d0e"
+  }
+}
+```
+
+| Method | Path | Access | Purpose |
+|---|---|---|---|
+| GET | `/api/v1/auth/csrf/` | Public | Set/return the CSRF token |
+| POST | `/api/v1/auth/login/` | Public + CSRF | Session login, rotates session and CSRF token |
+| POST | `/api/v1/auth/logout/` | Authenticated + CSRF | Flush session, returns 204 |
+| GET | `/api/v1/auth/me/` | Authenticated | Safe current-user profile, roles, permissions |
+| GET | `/api/v1/health/live/` | Public | Process liveness; no database access |
+| GET | `/api/v1/health/ready/` | Public | Bounded PostgreSQL readiness query |
+| GET | `/api/v1/schema/` | Staff only | OpenAPI 3 schema |
+| GET | `/api/v1/docs/` | Staff only | Swagger UI |
+| any | `/{ADMIN_URL}` | Staff only | Django admin |
+
+Authentication uses Django database-backed sessions, not JWT. The browser must
+fetch the CSRF bootstrap, send `X-CSRFToken` for login/logout and every
+authenticated unsafe request, and re-fetch the token after login or logout
+because both rotate it. See [docs/api.md](docs/api.md) for request examples and
+all documented error codes.
+
+## Quality gates
+
+Run from `backend/` with the virtual environment active and PostgreSQL
+available:
+
+```powershell
+python -m ruff check .
+python -m ruff format --check .
+python -m mypy .
+python -m pytest --cov --cov-report=term-missing
+python manage.py makemigrations --check --dry-run
+python manage.py spectacular --validate --file openapi.yaml
+python -m pip_audit -r requirements\production.txt
+```
+
+Test settings use PostgreSQL, not SQLite. The default test database name is
+`test_<DB_NAME>`; override it with `TEST_DB_NAME`. Coverage fails below **85%**.
+Latest local verification: **111 tests passed, 94.42% total coverage**. See
+[verification](docs/verification.md) for the exact environment and commands.
+
+Production configuration is validated at startup. A representative deploy
+check requires production values, for example:
+
+```powershell
+$env:DJANGO_SETTINGS_MODULE = "config.settings.production"
+$env:DJANGO_SECRET_KEY = "<unique 50+ character value>"
+$env:DJANGO_ALLOWED_HOSTS = "api.example.test"
+$env:CSRF_TRUSTED_ORIGINS = "https://app.example.test"
+$env:SECURE_HSTS_SECONDS = "31536000"
+$env:DB_SSLMODE = "require"
+$env:ADMIN_URL = "ops-admin/"
+python manage.py check --deploy
+```
+
+Milestone 1 was verified against an isolated PostgreSQL 14 cluster because the
+locally installed PostgreSQL service required credentials that were not
+available to the agent. See [docs/verification.md](docs/verification.md) for
+exact commands, results and the steps still required against your own database.
+
+## Documentation
+
+- [API contract](docs/api.md)
+- [Architecture, ERD, trust boundaries and future design](docs/architecture.md)
+- [Security controls and threat model](docs/security.md)
+- [Requirements traceability](docs/requirements-traceability.md)
+- [Verification results and limitations](docs/verification.md)
+
+## Milestone boundaries
+
+Implemented in milestone 1:
+
+- Custom user before the first migration; no default credentials
+- Session authentication with CSRF protection and rotation
+- Groups/permissions with default-deny DRF policy
+- PostgreSQL-backed login abuse protection shared across processes
+- Health endpoints, centralized errors, request IDs, structured logging
+- Production settings validation and security headers
+- OpenAPI documentation, tests, coverage, lint/type checks and CI
+
+Not implemented in milestone 1 (planned later):
+
+- React dashboard and Swift client
+- Product/catalog CRUD, categories, image upload/storage
+- Store and price comparison
+- Shopping-list logic and totals
+- Deployment automation, TLS termination and production infrastructure

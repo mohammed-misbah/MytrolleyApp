@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Django runtime artifacts
+staticfiles/
+media/
+*.log
+
+# Secrets and local environment
+backend/.env
+.env
+*.pem
+
+# Local databases and generated schemas
+*.sqlite3
+data/
+openapi.yaml
+openapi.json
+schema.yaml
+
+# Frontend placeholder artifacts (milestone 1 does not implement it)
+frontend/node_modules/
+frontend/dist/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,101 @@
+name: backend
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  verify:
+    name: Lint, types, migrations, schema, tests and audit
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_DB: mytrolley
+          POSTGRES_USER: mytrolley_app
+          POSTGRES_PASSWORD: ci-only-database-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mytrolley_app -d mytrolley"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      # CI-only signing key. Never reuse this value outside ephemeral CI.
+      DJANGO_SECRET_KEY: ci-only-6fJ2qL9xR4tW8yB3nC7mK5vH1sD0aG6uP9eZ2iO4rT7wX3cV8bN
+      DB_NAME: mytrolley
+      DB_USER: mytrolley_app
+      DB_PASSWORD: ci-only-database-password
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+      DB_SSLMODE: disable
+      TEST_DB_NAME: test_mytrolley
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: backend/requirements/*.txt
+
+      - name: Install pinned dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements/development.txt
+
+      - name: Ruff lint
+        run: python -m ruff check .
+
+      - name: Ruff format check
+        run: python -m ruff format --check .
+
+      - name: Type check
+        run: python -m mypy .
+
+      - name: Check for migration drift
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Validate OpenAPI schema
+        run: python manage.py spectacular --validate --file openapi.yaml
+
+      - name: Production deploy check
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.production
+          DJANGO_ALLOWED_HOSTS: api.example.test
+          CSRF_TRUSTED_ORIGINS: https://app.example.test
+          SECURE_HSTS_SECONDS: "31536000"
+          SECURE_HSTS_INCLUDE_SUBDOMAINS: "true"
+          SECURE_HSTS_PRELOAD: "true"
+          DB_SSLMODE: require
+          ADMIN_URL: ops-admin/
+        run: python manage.py check --deploy
+
+      - name: Run tests with coverage
+        run: python -m pytest --cov --cov-report=term-missing --cov-report=xml
+
+      - name: Audit production dependencies
+        run: python -m pip_audit -r requirements/production.txt
+
+      - name: Audit development dependencies
+        run: python -m pip_audit -r requirements/development.txt
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: backend/coverage.xml
+          if-no-files-found: warn

@@ -1,0 +1,6 @@
+# Runtime dependencies, pinned for reproducible installs.
+# Django 5.2 LTS supports PostgreSQL 14, the installed local server.
+Django==5.2.19
+djangorestframework==3.18.3
+drf-spectacular==0.30.0
+psycopg[binary]==3.3.9
