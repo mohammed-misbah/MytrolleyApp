@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from django.test import Client, override_settings
 
-from tests.conftest import fetch_csrf, login, make_user, post_json
+from tests.conftest import login, make_user, post_json
 
 
 def assert_error_shape(body: dict) -> None:
@@ -42,12 +42,10 @@ def test_malformed_json_returns_generic_invalid_json(
     client: Client,
     administrator,
 ) -> None:
-    token = fetch_csrf(client)
     response = post_json(
         client,
         "/api/v1/auth/login/",
         '{"username": "administrator", "password": ',
-        csrf_token=token,
     )
 
     assert response.status_code == 400
@@ -58,8 +56,7 @@ def test_malformed_json_returns_generic_invalid_json(
 
 @pytest.mark.django_db
 def test_empty_json_object_reports_missing_fields(client: Client, administrator) -> None:
-    token = fetch_csrf(client)
-    response = post_json(client, "/api/v1/auth/login/", {}, csrf_token=token)
+    response = post_json(client, "/api/v1/auth/login/", {})
 
     assert response.status_code == 400
     assert_error_shape(response.json())
@@ -70,12 +67,10 @@ def test_empty_json_object_reports_missing_fields(client: Client, administrator)
 
 @pytest.mark.django_db
 def test_wrong_input_types_are_validation_errors(client: Client, administrator) -> None:
-    token = fetch_csrf(client)
     response = post_json(
         client,
         "/api/v1/auth/login/",
         {"username": ["administrator"], "password": {"nested": "value"}},
-        csrf_token=token,
     )
 
     assert response.status_code == 400
@@ -89,7 +84,6 @@ def test_unexpected_fields_are_rejected_not_ignored(
     client: Client,
     administrator,
 ) -> None:
-    token = fetch_csrf(client)
     response = post_json(
         client,
         "/api/v1/auth/login/",
@@ -99,7 +93,6 @@ def test_unexpected_fields_are_rejected_not_ignored(
             "is_staff": True,
             "groups": ["Administrator"],
         },
-        csrf_token=token,
     )
 
     assert response.status_code == 400
@@ -111,12 +104,10 @@ def test_unexpected_fields_are_rejected_not_ignored(
 
 @pytest.mark.django_db
 def test_oversized_string_is_rejected(client: Client, administrator) -> None:
-    token = fetch_csrf(client)
     response = post_json(
         client,
         "/api/v1/auth/login/",
         {"username": "x" * 151, "password": "Correct-Horse-42!"},
-        csrf_token=token,
     )
 
     assert response.status_code == 400
@@ -127,12 +118,10 @@ def test_oversized_string_is_rejected(client: Client, administrator) -> None:
 @pytest.mark.django_db
 @override_settings(MAX_JSON_BODY_BYTES=1024)
 def test_oversized_body_returns_413(client: Client, administrator) -> None:
-    token = fetch_csrf(client)
     response = post_json(
         client,
         "/api/v1/auth/login/",
         {"username": "administrator", "password": "x" * 2000},
-        csrf_token=token,
     )
 
     assert response.status_code == 413
@@ -142,12 +131,10 @@ def test_oversized_body_returns_413(client: Client, administrator) -> None:
 
 @pytest.mark.django_db
 def test_unsupported_media_type_returns_415(client: Client, administrator) -> None:
-    token = fetch_csrf(client)
     response = client.post(
         "/api/v1/auth/login/",
         data="username=administrator&password=Correct-Horse-42!",
         content_type="application/x-www-form-urlencoded",
-        HTTP_X_CSRFTOKEN=token,
     )
 
     assert response.status_code == 415

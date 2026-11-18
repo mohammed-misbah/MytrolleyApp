@@ -40,7 +40,14 @@ from core.errors import (
     api_error_response,
     normalize_validation_errors,
 )
-from core.exceptions import InvalidCredentials, LoginRateLimited
+from core.exceptions import (
+    InvalidCredentials,
+    InvalidRefreshToken,
+    LoginRateLimited,
+    RefreshReuseDetected,
+    SessionRevoked,
+    TokenInvalid,
+)
 
 _logger = logging.getLogger("mytrolley.api")
 _security_logger = logging.getLogger("mytrolley.security")
@@ -102,13 +109,25 @@ def api_exception_handler(exc: Exception, context: dict[str, Any]) -> Response |
             status=status.HTTP_406_NOT_ACCEPTABLE,
         )
 
-    if isinstance(exc, AuthenticationFailed):
+    if isinstance(exc, (TokenInvalid, SessionRevoked, InvalidRefreshToken, RefreshReuseDetected)):
         return api_error_response(
             request,
-            code=getattr(exc, "api_code", "AUTHENTICATION_FAILED"),
-            message="Authentication failed.",
+            code=getattr(exc, "api_code", "TOKEN_INVALID"),
+            message=str(exc.detail),
+            status=exc.status_code,
+            headers=getattr(exc, "headers", None),
+        )
+
+    if isinstance(exc, AuthenticationFailed):
+        # simplejwt raises AuthenticationFailed/InvalidToken subclasses with
+        # internal detail dictionaries. Return a stable, non-sensitive code and
+        # never echo token metadata or parser messages.
+        return api_error_response(
+            request,
+            code=getattr(exc, "api_code", "TOKEN_INVALID"),
+            message="Authentication credentials are invalid or expired.",
             status=status.HTTP_401_UNAUTHORIZED,
-            headers={"WWW-Authenticate": "Session"},
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     if isinstance(exc, NotAuthenticated):
@@ -117,7 +136,7 @@ def api_exception_handler(exc: Exception, context: dict[str, Any]) -> Response |
             code="UNAUTHENTICATED",
             message="Authentication credentials were not provided.",
             status=status.HTTP_401_UNAUTHORIZED,
-            headers={"WWW-Authenticate": "Session"},
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     if isinstance(exc, PermissionDenied):

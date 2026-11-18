@@ -26,8 +26,10 @@ MyTrolleyApp/
 │   ├── manage.py
 │   └── pyproject.toml          Ruff, mypy, pytest and coverage configuration
 ├── docs/
-│   ├── api.md                  endpoint contracts and CSRF flow
+│   ├── api.md                  endpoint contracts, JWT and CSRF flow
 │   ├── architecture.md         components, ERD, trust boundaries, future design
+│   ├── frontend-integration.md browser token storage and refresh serialization
+│   ├── jwt_migration_plan.md   JWT migration decisions and rollback
 │   ├── requirements-traceability.md
 │   ├── security.md             threat model and controls
 │   └── verification.md         commands, results and known limitations
@@ -121,9 +123,9 @@ All API responses are JSON. Errors use one envelope:
 
 | Method | Path | Access | Purpose |
 |---|---|---|---|
-| GET | `/api/v1/auth/csrf/` | Public | Set/return the CSRF token |
-| POST | `/api/v1/auth/login/` | Public + CSRF | Session login, rotates session and CSRF token |
-| POST | `/api/v1/auth/logout/` | Authenticated + CSRF | Flush session, returns 204 |
+| POST | `/api/v1/auth/login/` | Public | Issue an access token, HttpOnly refresh cookie and readable CSRF cookie |
+| POST | `/api/v1/auth/refresh/` | Cookie + CSRF or body token | Rotate the access/refresh pair; hidden from Swagger UI |
+| POST | `/api/v1/auth/logout/` | Authenticated | Revoke all caller sessions, clear cookie, return 200 |
 | GET | `/api/v1/auth/me/` | Authenticated | Safe current-user profile, roles, permissions |
 | GET | `/api/v1/health/live/` | Public | Process liveness; no database access |
 | GET | `/api/v1/health/ready/` | Public | Bounded PostgreSQL readiness query |
@@ -131,11 +133,17 @@ All API responses are JSON. Errors use one envelope:
 | GET | `/api/v1/docs/` | Staff only (development: public) | Swagger UI |
 | any | `/{ADMIN_URL}` | Staff only | Django admin |
 
-Authentication uses Django database-backed sessions, not JWT. The browser must
-fetch the CSRF bootstrap, send `X-CSRFToken` for login/logout and every
-authenticated unsafe request, and re-fetch the token after login or logout
-because both rotate it. See [docs/api.md](docs/api.md) for request examples and
-all documented error codes.
+Authentication uses short-lived JWT access tokens. Login returns the access
+token and safe profile in JSON and sets the refresh token as an `HttpOnly`
+cookie; the refresh token is never returned in JSON. Send
+`Authorization: Bearer <access>` on protected endpoints. Cookie-based refresh
+requires `X-CSRFToken` echoed from the `csrftoken` cookie that login sets; a
+body-supplied refresh token does not. Bearer-only requests need no CSRF token.
+Refresh rotates and detects replay, revoking the affected token family. Logout
+revokes every session for the caller and returns `200` with an explicit
+message. See [docs/api.md](docs/api.md) for request examples and
+[docs/frontend-integration.md](docs/frontend-integration.md) for browser token
+handling.
 
 ### Test the auth API with Swagger UI
 
@@ -150,19 +158,20 @@ http://127.0.0.1:8000/api/v1/docs/
 Then:
 
 1. Expand **Authentication**.
-2. `GET /api/v1/auth/csrf/` → **Execute**. This sets the `csrftoken` cookie.
-3. `POST /api/v1/auth/login/` → **Execute** with
-   `{"username": "your-username", "password": "your-password"}`. Leave the
-   `X-CSRFToken` field alone; the project Swagger script fills it from the
-   current cookie and replaces it on every unsafe request.
+2. `POST /api/v1/auth/login/` → **Execute** with
+   `{"username": "your-username", "password": "your-password"}`. Expect `200`
+   with `access` and `user`; the refresh cookie is set silently.
+3. Click **Authorize**, paste only the `access` value and confirm.
 4. `GET /api/v1/auth/me/` → **Execute**. Expect `200` and your user.
-5. `POST /api/v1/auth/logout/` → **Execute**. Expect `204`.
-6. Run `me` again. Expect `401 UNAUTHENTICATED`.
+5. `POST /api/v1/auth/logout/` → **Execute**. Expect `200` and
+   `{"message": "Logout successful. All active sessions for the current user have been revoked."}`.
+6. Run `me` again. Expect `401 SESSION_REVOKED`.
 
-The script re-reads the cookie after login and logout rotation, so no manual
-token copying is needed. To require staff access locally, set
-`API_DOCS_PUBLIC=false` in `backend/.env` and restart the server. Production
-always forces it to false.
+The refresh endpoint is intentionally hidden from Swagger UI but remains
+callable; exercise it with a cookie jar or send the refresh token in a JSON body
+(see [docs/api.md](docs/api.md#post-apiv1authrefresh)). To require staff access
+locally, set `API_DOCS_PUBLIC=false` in `backend/.env` and restart the server.
+Production always forces it to false.
 
 ## Quality gates
 
@@ -170,10 +179,10 @@ Run from `backend/` with the virtual environment active and PostgreSQL
 available:
 
 ```powershell
-python -m ruff check .
-python -m ruff format --check .
-python -m mypy .
-python -m pytest --cov --cov-report=term-missing
+python -m ruff check accounts core config tests\test_auth.py tests\test_jwt_security.py tests\test_swagger_docs.py tests\test_errors.py tests\test_throttling.py tests\test_permissions.py tests\test_security_surfaces.py tests\test_commands.py tests\conftest.py
+python -m ruff format --check accounts core config tests\test_auth.py tests\test_jwt_security.py tests\test_swagger_docs.py tests\test_errors.py tests\test_throttling.py tests\test_permissions.py tests\test_security_surfaces.py tests\test_commands.py tests\conftest.py
+python -m mypy accounts core config
+python -m pytest --cov --cov-report=term-missing --ignore=tests/test_catalog_api.py --ignore=tests/test_catalog_models.py
 python manage.py makemigrations --check --dry-run
 python manage.py spectacular --validate --file openapi.yaml
 python -m pip_audit -r requirements\production.txt
@@ -181,8 +190,12 @@ python -m pip_audit -r requirements\production.txt
 
 Test settings use PostgreSQL, not SQLite. The default test database name is
 `test_<DB_NAME>`; override it with `TEST_DB_NAME`. Coverage fails below **85%**.
-Latest local verification: **112 tests passed, 94.44% total coverage**. See
-[verification](docs/verification.md) for the exact environment and commands.
+Latest local authentication-slice verification: **157 tests passed, 94.52%
+total coverage**. The two `catalog` test modules are Milestone 2 work in
+progress and are not part of this milestone; they are excluded from the
+authentication-slice run and still block a clean repo-wide Ruff/collection run.
+See [verification](docs/verification.md) for the exact environment, commands and
+remaining blockers.
 
 Production configuration is validated at startup. A representative deploy
 check requires production values, for example:
@@ -190,6 +203,7 @@ check requires production values, for example:
 ```powershell
 $env:DJANGO_SETTINGS_MODULE = "config.settings.production"
 $env:DJANGO_SECRET_KEY = "<unique 50+ character value>"
+$env:JWT_SIGNING_KEY = "<different unique 50+ character value>"
 $env:DJANGO_ALLOWED_HOSTS = "api.example.test"
 $env:CSRF_TRUSTED_ORIGINS = "https://app.example.test"
 $env:SECURE_HSTS_SECONDS = "31536000"
@@ -199,13 +213,18 @@ python manage.py check --deploy
 ```
 
 Milestone 1 was verified against the local PostgreSQL 14.18 service on
-`127.0.0.1:5432`, and the GitHub Actions `backend` workflow passed. See
-[docs/verification.md](docs/verification.md) for exact commands and results.
+`127.0.0.1:5432`, including a live HTTP smoke test and a Swagger UI browser run.
+The JWT changes are uncommitted, so no GitHub Actions run exists for them; the
+workflow itself is in `.github/workflows/ci.yml`. See
+[docs/verification.md](docs/verification.md) for exact commands, results and
+blockers.
 
 ## Documentation
 
 - [API contract](docs/api.md)
 - [Architecture, ERD, trust boundaries and future design](docs/architecture.md)
+- [Frontend JWT integration](docs/frontend-integration.md)
+- [JWT migration record](docs/jwt_migration_plan.md)
 - [Security controls and threat model](docs/security.md)
 - [Requirements traceability](docs/requirements-traceability.md)
 - [Verification results and limitations](docs/verification.md)
@@ -215,7 +234,9 @@ Milestone 1 was verified against the local PostgreSQL 14.18 service on
 Implemented in milestone 1:
 
 - Custom user before the first migration; no default credentials
-- Session authentication with CSRF protection and rotation
+- JWT access tokens with server-side session revocation
+- Rotating refresh cookies, reuse detection and CSRF on cookie renewal
+- Single logout endpoint that revokes all caller sessions and returns 200
 - Groups/permissions with default-deny DRF policy
 - PostgreSQL-backed login abuse protection shared across processes
 - Health endpoints, centralized errors, request IDs, structured logging

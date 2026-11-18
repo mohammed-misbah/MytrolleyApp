@@ -38,7 +38,7 @@ def _dispatch(exc: Exception):
     ("exception", "expected_code", "expected_status"),
     [
         (NotAcceptable(), "NOT_ACCEPTABLE", status.HTTP_406_NOT_ACCEPTABLE),
-        (AuthenticationFailed(), "AUTHENTICATION_FAILED", status.HTTP_401_UNAUTHORIZED),
+        (AuthenticationFailed(), "TOKEN_INVALID", status.HTTP_401_UNAUTHORIZED),
         (NotAuthenticated(), "UNAUTHENTICATED", status.HTTP_401_UNAUTHORIZED),
         (PermissionDenied(), "FORBIDDEN", status.HTTP_403_FORBIDDEN),
         (NotFound(), "NOT_FOUND", status.HTTP_404_NOT_FOUND),
@@ -81,7 +81,7 @@ def test_invalid_credentials_keep_generic_message_and_challenge() -> None:
     assert response is not None
     assert response.status_code == 401
     assert response.data["error"]["message"] == "Invalid username or password."
-    assert response["WWW-Authenticate"] == "Session"
+    assert response["WWW-Authenticate"] == "Bearer"
 
 
 def test_validation_errors_are_flattened_with_dotted_keys() -> None:

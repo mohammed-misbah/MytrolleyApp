@@ -7,8 +7,9 @@ operational surface of the API. The design prioritises:
 
 1. **No default access:** no default account, no public registration and
    default-deny API permissions.
-2. **Revocable browser authentication:** database-backed sessions with CSRF
-   protection and server-side invalidation.
+2. **Revocable token authentication:** short-lived JWT access tokens backed by
+   server-side auth sessions, plus rotating refresh tokens delivered in an
+   HttpOnly cookie with CSRF protection on cookie-authorized renewal.
 3. **Least privilege:** two explicit business permissions, enforced server-side.
 4. **Fail closed:** invalid production configuration stops startup rather than
    silently downgrading security.
@@ -22,10 +23,11 @@ operational surface of the API. The design prioritises:
 | Asset | Why it matters |
 |---|---|
 | User credentials and password hashes | Account takeover |
-| Session identifiers | Authenticated access without a password |
-| CSRF tokens | Protection against cross-site state changes |
+| JWT access tokens | Authenticated access without a password until expiry/revocation |
+| Refresh tokens and auth sessions | Long-lived authenticated access and renewal |
+| JWT signing key, `DJANGO_SECRET_KEY` and database credentials | Token forgery or full data/system compromise |
+| CSRF tokens | Protection against cross-site cookie-authorized state changes |
 | Role/group/permission assignments | Business authorization and escalation |
-| Database credentials and `DJANGO_SECRET_KEY` | Full data/system compromise |
 | Audit/log data | Detection, correlation and incident response |
 | Admin and API documentation | High-value reconnaissance/administration surface |
 
@@ -57,50 +59,92 @@ most important assumptions are:
   command-line passwords.
 - **No registration endpoint.** `/api/v1/auth/register/` returns `404`; there is
   no self-service account creation.
-- **Session storage.** `django.contrib.sessions.backends.db` stores sessions in
-  PostgreSQL, shared by all application processes.
-- **Cookie flags.** `sessionid` is `HttpOnly`, `SameSite=Lax`, `Secure` in
-  production, with an 8-hour sliding expiry (`SESSION_SAVE_EVERY_REQUEST=True`).
-- **Rotation.** Django's `login()` rotates the session key and deletes the old
-  session row. The CSRF token is also rotated on login and logout.
-- **Logout.** `POST /api/v1/auth/logout/` flushes the server-side session and
-  returns `204`. A subsequent `/me/` request returns `401`.
-- **Inactive users.** Django's authentication backend rejects inactive users,
-  so they cannot log in; an existing session for a user later marked inactive
-  is rejected by the authentication middleware.
+- **Token pair.** `POST /api/v1/auth/login/` issues a short-lived JWT access
+  token (default 300 seconds) and creates a server-side `AuthSession` row. The
+  response contains only the access token and safe profile; the refresh token is
+  delivered as an `HttpOnly` cookie.
+- **Session-backed revocation.** Every access token carries a `sid` claim. The
+  authentication class requires the referenced `AuthSession` to be active, so
+  logout, password change and deactivation take effect immediately rather than
+  waiting for the access token to expire.
+- **Claim validation.** Tokens are signed with a dedicated
+  `JWT_SIGNING_KEY`, are accepted only with `HS256`, and are validated for
+  signature, expiry, issuer, audience and token type. Access tokens cannot be
+  used as refresh tokens, and vice versa.
+- **Refresh rotation.** Refresh tokens carry a JTI and a family ID. Each refresh
+  locks the session row, checks the stored JTI and issues a new pair. A consumed
+  JTI presented again is treated as reuse: the affected token family is revoked
+  and the request fails. Other logins for the same user are not revoked.
+- **Absolute expiry.** `AuthSession.expires_at` is a hard limit (default 7
+  days). A rotated refresh token lifetime is capped at that expiry, so renewal
+  can never extend the session indefinitely.
+- **Cookie flags.** `refresh_token` is `HttpOnly`, `Secure` outside development,
+  `SameSite=Strict` outside development (`Lax` locally), scoped to
+  `Path=/api/v1/auth/`, with a max-age equal to the refresh lifetime. Logout
+  clears it with matching path/SameSite attributes.
+- **Logout.** `POST /api/v1/auth/logout/` revokes every active auth session for
+  the caller, clears the refresh cookie and returns `200` with an explicit
+  message. Access and refresh tokens for all of that user's logins stop working
+  immediately. The endpoint never returns a success message when authentication
+  or revocation fails.
+- **Inactive users.** Django's authentication backend rejects inactive users at
+  login; an existing session for a user later marked inactive is rejected by
+  the authentication class and revoked by the user save signal.
 - **Generic failures.** Wrong password, unknown user and inactive user all
   return the same `401 INVALID_CREDENTIALS` message. The response never reveals
   whether the account exists.
-- **No JWT.** No bearer token is issued or stored in `localStorage`, avoiding a
-  common browser token-exfiltration path and enabling immediate revocation.
+- **Browser storage.** The access token is kept in memory only; the refresh
+  token is unreadable by page script. Neither token is written to
+  `localStorage` or `sessionStorage`.
+
+Django's database-backed `sessionid` cookie remains in use for the Django admin
+only. Admin CSRF and session rotation are unchanged and independent of the JWT
+API.
 
 ## CSRF design
 
-DRF's `SessionAuthentication` enforces CSRF only once a request is
-authenticated. An anonymous login POST therefore needs explicit protection.
+CSRF protection applies to state changes authorized by an **ambient cookie**.
+The JWT API has exactly one such credential: the `refresh_token` cookie.
 
-- `LoginView.post` is wrapped with Django's `csrf_protect`.
-- `GET /api/v1/auth/csrf/` uses `ensure_csrf_cookie`, returns the masked token
-  and sets the `csrftoken` cookie.
-- `CSRF_COOKIE_HTTPONLY=False` because the browser must send the value in
+- `POST /api/v1/auth/refresh/` requires `X-CSRFToken` when the refresh token is
+  read from the cookie. The check uses Django's `CsrfViewMiddleware` against the
+  real request, so origin, referer and token validation behave like Django's.
+- A refresh token supplied in the JSON body is an explicit credential chosen by
+  the caller, not an ambient cookie, so it does not require CSRF. This keeps
+  CLI and server-to-server renewal usable.
+- Login uses `ensure_csrf_cookie`, so a successful login sets the readable
+  `csrftoken` cookie. The browser echoes that value in `X-CSRFToken` on cookie
+  refresh. There is no public CSRF bootstrap endpoint.
+- Login is JSON-only and credential-based. A cross-site HTML form cannot send
+  `application/json` without a CORS preflight, no permissive CORS policy exists,
+  and the response is unreadable cross-origin. Login therefore does not accept
+  `X-CSRFToken` as a substitute for credentials and does not require the header.
+- Logout authenticates with `Authorization: Bearer`, a header a cross-site form
+  cannot set and a cookie the browser does not attach automatically for API
+  authorization. Bearer-only requests need no CSRF token.
+- `CSRF_COOKIE_HTTPONLY=False` because the browser must copy the value into
   `X-CSRFToken`. The cookie is not an authentication secret by itself; the
-  session cookie remains `HttpOnly`.
-- `CSRF_COOKIE_SAMESITE="Lax"`, `CSRF_USE_SESSIONS=False`,
-  `CSRF_COOKIE_AGE=28800`.
+  refresh cookie remains `HttpOnly`.
+- `CSRF_COOKIE_SAMESITE="Lax"`, `CSRF_USE_SESSIONS=False`, and
+  `CSRF_COOKIE_AGE = JWT_ABSOLUTE_SESSION_SECONDS` so an idle browser can still
+  refresh within the hard session cap.
 - `CSRF_TRUSTED_ORIGINS` accepts only exact `scheme://host[:port]` origins; the
   parser rejects wildcards, credentials, paths, queries and fragments.
 - A CSRF failure on `/api/` returns the JSON envelope with `CSRF_FAILED`; the
   admin keeps Django's HTML 403 page.
-- There is no CORS package. A same-origin deployment keeps the session/CSRF
-  model simple and avoids cross-origin credential exposure.
+- There is no CORS package. A same-origin deployment keeps the cookie/CSRF model
+  simple and avoids cross-origin credential exposure.
+
+Hiding refresh from Swagger UI is a documentation choice, not a CSRF or
+authorization control. The endpoint remains callable and protected as above.
 
 ## Authorization model
 
 `REST_FRAMEWORK["DEFAULT_PERMISSION_CLASSES"]` is
 `IsAuthenticated`. Public endpoints opt out individually:
 
-- `GET /api/v1/auth/csrf/`
-- `POST /api/v1/auth/login/` (still CSRF-protected)
+- `POST /api/v1/auth/login/` (JSON-only credential exchange)
+- `POST /api/v1/auth/refresh/` (hidden from Swagger; CSRF when cookie-authorized)
 - `GET /api/v1/health/live/`
 - `GET /api/v1/health/ready/`
 
@@ -152,8 +196,14 @@ application process and survive process restarts.
   someone with the application secret, but it does not directly reveal
   usernames/IPs in backups or ad-hoc queries.
 - **Operational note:** rotating `DJANGO_SECRET_KEY` makes existing throttle
-  keys unreachable. Prune the table after a key rotation; existing sessions also
-  become invalid because Django signs session data with the secret.
+  keys unreachable; prune the table after a key rotation. Rotating
+  `JWT_SIGNING_KEY` invalidates every JWT access and refresh token immediately,
+  so schedule it in a maintenance window.
+- **Refresh abuse:** `accounts.RefreshThrottle` uses the same keyed-hash design
+  for refresh attempts (default 120 per user and 300 per IP in a 15-minute
+  window, then a 15-minute cooldown). A successful login clears the caller's
+  refresh counters. The refresh endpoint is hidden from Swagger but is still
+  rate-limited.
 
 Throttling is not a substitute for strong passwords, MFA or network controls.
 Distributed password spraying across many IPs remains partially possible; the
@@ -191,8 +241,9 @@ The request ID is echoed in `X-Request-ID`.
   `method`, `path`, `status`, `duration_ms`, `reason`, `retry_after`,
   `user_id`, `error_type`) plus the exception traceback. Arbitrary `extra`
   attributes, including a test `password`, are dropped.
-- Login successes/failures and CSRF failures are logged as events without the
-  submitted password or username.
+- Login, refresh and logout successes/failures and CSRF failures are logged as
+  events without submitted passwords, usernames, access/refresh tokens,
+  `Authorization` headers or cookie values.
 - Readiness failures log only the exception class, never the driver message.
 
 ## Production configuration and secrets
@@ -203,8 +254,11 @@ closed with variable names only:
 - `DEBUG` false.
 - `DJANGO_SECRET_KEY` at least 50 characters, not a known placeholder, with
   sufficient variation.
+- `JWT_SIGNING_KEY` at least 50 characters and different from
+  `DJANGO_SECRET_KEY`; only the variable name is shown on failure.
 - Explicit `DJANGO_ALLOWED_HOSTS`; `*` is rejected.
 - `SESSION_COOKIE_SECURE` and `CSRF_COOKIE_SECURE` true.
+- Refresh cookies use `Secure` and `SameSite=Strict` because `DEBUG` is false.
 - `SECURE_SSL_REDIRECT` true.
 - HSTS configured with a non-negative value; preload requires subdomains and at
   least one year.
@@ -250,9 +304,11 @@ known milestone-1 gap, not an implicit claim of complete browser hardening.
   docs can be opened anonymously for login testing; production forces it to
   false. This flag changes documentation visibility only, not API permissions
   or CSRF enforcement.
-- The project Swagger script reads the current `csrftoken` cookie for every
-  unsafe request, so login/logout rotation does not leave a stale token in the
-  page.
+- Swagger UI uses drf-spectacular's stock template. There is no project CSRF
+  bootstrap script and no CSRF parameter in the schema; Bearer calls need none.
+- `POST /api/v1/auth/refresh/` is excluded from the public schema and Swagger UI.
+  The route stays callable; hiding it is documentation policy, not a security
+  control.
 - Documentation error responses are forced through the JSON renderer so the
   error contract stays consistent even on drf-spectacular views.
 
@@ -285,10 +341,12 @@ known milestone-1 gap, not an implicit claim of complete browser hardening.
 |---|---|
 | No MFA or password-reset flow | Out of milestone 1 scope; required before production exposure |
 | XSS can act as the user despite HttpOnly | No CSP yet; future frontend/proxy must add CSP and output encoding |
-| Session theft via compromised browser | Secure/HttpOnly/SameSite cookies, rotation, 8-hour expiry, server-side logout |
+| Access-token theft via compromised browser | Short 5-minute lifetime plus session revocation on logout/password change/deactivation; a stolen access token works until then |
+| Refresh-cookie theft | HttpOnly/Secure/SameSite cookie, rotation on every use, reuse detection revokes the family, absolute 7-day session limit |
+| Refresh replay by a parallel client | Server-side row lock and JTI rotation; clients must serialize refresh calls (documented in `docs/frontend-integration.md`) |
+| Secret rotation breaks sessions/throttle keys | Rotating `JWT_SIGNING_KEY` invalidates all JWT sessions; rotating `DJANGO_SECRET_KEY` breaks throttle keys and admin sessions. Rotate during a maintenance window and prune stale rows |
 | Distributed password spraying | Per-username and per-IP DB limits reduce but do not eliminate |
-| Throttle table growth | `prune_login_throttles` command; schedule it operationally |
-| Secret rotation breaks sessions/throttle keys | Expected; rotate during a maintenance window and prune throttle rows |
+| Throttle table growth | `prune_login_throttles` and `prune_jwt_tokens` commands; schedule them operationally |
 | OneDrive-synced workspace | `backend/.env` is gitignored but may still sync to cloud storage; keep production secrets out of synced local files |
 | Public development docs | Development defaults to anonymous docs so a fresh login can be tested; bind the dev server to localhost and set `API_DOCS_PUBLIC=false` if that exposure is unwanted |
 | No malware scanning for future images | Explicitly deferred to milestone 3; design requires validation, re-encoding and scanning |
@@ -300,6 +358,9 @@ known milestone-1 gap, not an implicit claim of complete browser hardening.
 
 - [ ] Generate a unique 50+ character `DJANGO_SECRET_KEY`, store it outside Git
       and outside OneDrive-synced plaintext if possible.
+- [ ] Generate a separate 50+ character `JWT_SIGNING_KEY`; never reuse
+      `DJANGO_SECRET_KEY` and never commit either value.
+- [ ] Keep JWT token lifetimes short; the absolute session limit is a hard cap.
 - [ ] Use a dedicated PostgreSQL role/database; not a superuser; TLS required.
 - [ ] Set explicit `DJANGO_ALLOWED_HOSTS` and exact HTTPS
       `CSRF_TRUSTED_ORIGINS`.
@@ -310,7 +371,7 @@ known milestone-1 gap, not an implicit claim of complete browser hardening.
       the proxy overwrites forwarded headers.
 - [ ] Add a restrictive CSP at the proxy/frontend layer.
 - [ ] Run `python manage.py check --deploy` with production settings.
-- [ ] Schedule `prune_login_throttles`.
+- [ ] Schedule `prune_login_throttles` and `prune_jwt_tokens`.
 - [ ] Back up PostgreSQL and test restore; never commit `.env` or database
       dumps.
 - [ ] Run `pip-audit`, tests, migrations drift check and schema validation in

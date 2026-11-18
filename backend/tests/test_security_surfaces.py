@@ -60,18 +60,16 @@ def test_openapi_documentation_is_staff_only(client: Client, roles) -> None:
     assert anonymous.status_code == 401
     assert anonymous.json()["error"]["code"] == "UNAUTHENTICATED"
 
-    staff = make_user("docs-staff", is_staff=True)
-    client.force_login(staff)
-    schema_response = client.get("/api/v1/schema/")
+    make_user("docs-staff", is_staff=True)
+    login_response = login(client, "docs-staff", "Correct-Horse-42!")
+    access = login_response.json()["access"]
+
+    schema_response = client.get("/api/v1/schema/", **{"HTTP_AUTHORIZATION": f"Bearer {access}"})
     assert schema_response.status_code == 200
 
-    docs_response = client.get("/api/v1/docs/")
+    docs_response = client.get("/api/v1/docs/", **{"HTTP_AUTHORIZATION": f"Bearer {access}"})
     assert docs_response.status_code == 200
-    # The project script replaces the stock render-time token with per-request
-    # cookie reading and keeps the required X-CSRFToken field populated.
-    assert b"bootstrapCsrf" in docs_response.content
-    assert b"syncCsrfHeaderInputs" in docs_response.content
-    assert b"responseInterceptor" in docs_response.content
+    assert b"{% url" not in docs_response.content
 
 
 def test_json_formatter_includes_structured_fields_and_traceback() -> None:

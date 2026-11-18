@@ -138,6 +138,16 @@ def get_list(
     return values
 
 
+def get_jwt_signing_key() -> str:
+    """Load and validate the dedicated JWT signing key without revealing it."""
+    value = get_env("JWT_SIGNING_KEY", required=True).strip()
+    if len(value) < 50:
+        raise ImproperlyConfigured("JWT_SIGNING_KEY must contain at least 50 characters.")
+    if value == os.environ.get("DJANGO_SECRET_KEY", ""):
+        raise ImproperlyConfigured("JWT_SIGNING_KEY must differ from DJANGO_SECRET_KEY.")
+    return value
+
+
 def get_secret_key() -> str:
     """Load and validate Django's signing secret without revealing it."""
     value = get_env("DJANGO_SECRET_KEY", required=True).strip()

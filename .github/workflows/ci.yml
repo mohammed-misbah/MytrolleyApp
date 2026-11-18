@@ -33,6 +33,8 @@ jobs:
       DJANGO_SETTINGS_MODULE: config.settings.test
       # CI-only signing key. Never reuse this value outside ephemeral CI.
       DJANGO_SECRET_KEY: ci-only-6fJ2qL9xR4tW8yB3nC7mK5vH1sD0aG6uP9eZ2iO4rT7wX3cV8bN
+      # Must differ from DJANGO_SECRET_KEY; validated at startup.
+      JWT_SIGNING_KEY: ci-only-jwt-3pQ7wE1rT5yU9iO2pA6sD0fG4hJ8kL2zX6cV1bN5mQ9wE3rT7yU
       DB_NAME: mytrolley
       DB_USER: mytrolley_app
       DB_PASSWORD: ci-only-database-password

@@ -3,13 +3,13 @@
 ## Purpose and scope
 
 Milestone 1 establishes a secure backend foundation for MyTrolley: a Django
-REST Framework application backed by PostgreSQL, with session authentication,
+REST Framework application backed by PostgreSQL, with JWT token authentication,
 role-based authorization, operational health endpoints, a consistent error
 contract and a reproducible quality gate. Product, catalog, image, store and
 shopping-list behaviour is designed here but intentionally not implemented yet.
 
 The solution is a modular monolith. It uses no Docker, microservices, Redis,
-SQLite, JWT or YAML-based application configuration.
+SQLite or YAML-based application configuration.
 
 ## System context
 
@@ -22,7 +22,7 @@ flowchart LR
     PG[("PostgreSQL 14+")]
     Storage[("Object storage\n(future, images)")]
 
-    Browser -->|HTTPS, session + CSRF| Proxy
+    Browser -->|HTTPS, Bearer token + refresh cookie| Proxy
     Staff -->|HTTPS, staff session| Proxy
     Proxy -->|WSGI/ASGI HTTP| Django
     Django -->|psycopg, private network| PG
@@ -50,10 +50,12 @@ Swift) can rely on explicit contracts.
 | `core/parsers.py` | Bounded JSON parser; rejects oversized or malformed bodies early |
 | `core/health.py` | Bounded `SELECT 1` readiness probe |
 | `core/security.py` | Client IP resolution with explicit proxy trust |
-| `accounts/models.py` | Custom user created before first migration; throttle table |
+| `accounts/models.py` | Custom user, `AuthSession`, login and refresh throttle tables |
 | `accounts/roles.py` | Idempotent group/permission seeding |
-| `accounts/throttling.py` | PostgreSQL-backed login abuse protection |
-| `accounts/views.py` | CSRF bootstrap, login, logout, current user |
+| `accounts/throttling.py` | PostgreSQL-backed login and refresh abuse protection |
+| `accounts/tokens.py` | Access/refresh issuance, rotation, reuse detection, revocation |
+| `accounts/authentication.py` | Session-aware Bearer validation |
+| `accounts/views.py` | Login, CSRF cookie issuance, refresh, logout, current user |
 
 ## Request lifecycle
 
@@ -63,13 +65,13 @@ Request
   → RequestLoggingMiddleware       status, path, duration; traceback on unhandled error
   → SecurityMiddleware             HTTPS redirect/HSTS in production
   → AdminIpAllowlistMiddleware     optional network gate for admin prefix
-  → SessionMiddleware              load database session
+  → SessionMiddleware              load database session (Django admin only)
   → CommonMiddleware
-  → CsrfViewMiddleware             enforce CSRF for unsafe requests
-  → AuthenticationMiddleware       attach user; inactive sessions rejected
+  → CsrfViewMiddleware             enforce CSRF for admin; refresh checks it explicitly
+  → AuthenticationMiddleware       attach admin session user
   → MessageMiddleware / XFrameOptionsMiddleware
   → URL resolver
-  → DRF authentication (SessionAuthentication)
+  → DRF authentication (SessionAwareJWTAuthentication)
   → DRF permission (default IsAuthenticated, explicit public exceptions)
   → View / serializer validation
   → Exception handler             stable JSON envelope, safe message, request ID
@@ -91,6 +93,7 @@ erDiagram
     PERMISSION ||--o{ GROUP_PERMISSIONS : granted
     USER ||--o{ USER_PERMISSIONS : direct
     PERMISSION ||--o{ USER_PERMISSIONS : direct
+    USER ||--o{ AUTH_SESSION : owns
     USER ||--o{ DJANGO_ADMIN_LOG : acts
 
     USER {
@@ -131,6 +134,19 @@ erDiagram
         text session_data
         datetime expire_date
     }
+    AUTH_SESSION {
+        uuid id PK
+        uuid family_id
+        bigint user_id FK
+        string refresh_jti UK
+        datetime created_at
+        datetime last_used_at
+        datetime expires_at
+        datetime revoked_at
+        string revoke_reason
+        string user_agent
+        inet ip_address
+    }
     LOGIN_THROTTLE {
         bigint id PK
         string key_hash UK
@@ -140,11 +156,22 @@ erDiagram
         datetime blocked_until
         datetime updated_at
     }
+    REFRESH_THROTTLE {
+        bigint id PK
+        string key_hash UK
+        string scope
+        integer hit_count
+        datetime window_started_at
+        datetime blocked_until
+        datetime updated_at
+    }
 ```
 
 `LOGIN_THROTTLE` is deliberately independent of `USER`: it also counts unknown
-usernames and IP addresses, and stores only HMAC-SHA256 keys. Sessions and
-throttle rows are database rows, so every application process shares them.
+usernames and IP addresses, and stores only HMAC-SHA256 keys. `AUTH_SESSION`
+backs access-token revocation: the `sid` claim must resolve to a live row.
+Throttle and auth-session rows are database rows, so every application process
+shares them. `DJANGO_SESSION` remains for the Django admin only.
 
 ### Role matrix
 
@@ -161,28 +188,37 @@ throttle rows are database rows, so every application process shares them.
 The permission class reads a view's `permission_required` codename and checks
 the active authenticated user. Missing permission configuration fails closed.
 
-## Authentication and session design
+## Authentication and token design
 
 ```text
-GET /auth/csrf/  → sets csrftoken cookie, returns masked token
-POST /auth/login/ (cookie + X-CSRFToken)
+POST /auth/login/ (JSON username/password)
   → credential validation (generic failure)
-  → database throttle check
+  → database login throttle check
   → Django authenticate
-  → session rotation (new session key; old row deleted)
-  → CSRF token rotation
-  → safe user payload + Set-Cookie sessionid
-GET /auth/me/ → session lookup, active-user check, safe payload
-POST /auth/logout/ (session + X-CSRFToken)
-  → server-side session flush
-  → CSRF rotation
-  → 204
+  → create AuthSession (sid, family, refresh JTI, absolute expiry)
+  → short-lived access JWT + HttpOnly refresh cookie + readable CSRF cookie
+GET /auth/me/ → Bearer verification, sid lookup, active-user/session check
+POST /auth/refresh/ (cookie + X-CSRFToken, or body token)
+  → validate signature/expiry/issuer/audience/type
+  → lock session, compare stored JTI
+  → rotate JTI and issue a new access token + cookie
+  → replay of a consumed JTI revokes the token family
+POST /auth/logout/ (Bearer)
+  → revoke every AuthSession for the caller
+  → clear refresh cookie
+  → 200 with an explicit message
 ```
 
-No JWT is issued and no token is stored in `localStorage`. The session cookie is
-`HttpOnly`, `SameSite=Lax`, `Secure` in production, and uses an 8-hour sliding
-expiry. The CSRF cookie is intentionally readable by JavaScript because the
-client must copy it into `X-CSRFToken`.
+The access token is held in client memory only; the refresh token is an
+`HttpOnly` cookie scoped to `/api/v1/auth/`, `Secure` and `SameSite=Strict`
+outside development. Refresh rotation is capped by the session's absolute
+expiry. The CSRF cookie remains readable by JavaScript because cookie-authorized
+refresh must copy it into `X-CSRFToken`. Django admin keeps its own session
+cookie and CSRF protection.
+
+Refresh is intentionally excluded from the public schema and Swagger UI while
+remaining callable. Hiding it is a documentation choice, not a security
+boundary.
 
 ## Trust boundaries
 
@@ -200,7 +236,7 @@ client must copy it into `X-CSRFToken`.
    non-default in production and can be restricted by source network.
    Swagger/schema are staff-only and disabled by default in production.
    Development may expose the docs anonymously (`API_DOCS_PUBLIC=true`) to test
-   the session/CSRF login flow; this changes documentation visibility only.
+   the login flow; this changes documentation visibility only.
 5. **Future object storage.** Product images will cross into object storage.
    That boundary needs content validation, malware scanning, re-encoding,
    signed URLs and least-privilege bucket credentials.
@@ -336,10 +372,13 @@ erDiagram
 - **Django 5.2 LTS instead of 6.x:** the installed PostgreSQL is 14.18 and
   Django 6.x requires PostgreSQL 15+. Django 5.2 is supported and compatible
   with Python 3.14.
-- **Database sessions instead of JWT:** simpler revocation, no browser token
-  storage, and native CSRF integration. The trade-off is a database read per
-  authenticated request and sticky deployment assumptions are avoided because
-  sessions are shared in PostgreSQL.
+- **JWT access tokens backed by `AuthSession` instead of stateless JWT or
+  session cookies:** the API needs short-lived bearer credentials for future
+  React/iOS clients, but immediate revocation still matters. The `sid` claim
+  resolves against a database row on every request, so logout, password change
+  and deactivation take effect at once. The trade-off is one indexed database
+  read per authenticated request plus rotation/cleanup machinery; sticky
+  deployment assumptions are avoided because the rows live in PostgreSQL.
 - **PostgreSQL throttle instead of cache/Redis:** satisfies cross-process abuse
   protection without adding Redis. The trade-off is write load on failed logins
   and periodic cleanup (`prune_login_throttles`).

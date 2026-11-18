@@ -12,7 +12,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.utils import timezone
 
-from accounts.models import LoginThrottle
+from accounts.models import AuthSession, LoginThrottle, RefreshThrottle
 from accounts.roles import ROLE_ADMINISTRATOR, ROLE_DATA_ENTRY
 
 User = get_user_model()
@@ -135,3 +135,50 @@ def test_prune_login_throttles_removes_only_stale_rows() -> None:
 
     assert not LoginThrottle.objects.filter(pk=stale.pk).exists()
     assert LoginThrottle.objects.filter(pk=active.pk).exists()
+
+
+@pytest.mark.django_db
+def test_prune_jwt_tokens_removes_only_sessions_expired_beyond_retention(
+    administrator,
+) -> None:
+    now = timezone.now()
+    stale = AuthSession.objects.create(
+        user=administrator,
+        refresh_jti="stale-jti",
+        expires_at=now - timedelta(days=10),
+    )
+    recent = AuthSession.objects.create(
+        user=administrator,
+        refresh_jti="recent-jti",
+        expires_at=now + timedelta(days=1),
+    )
+    stale_throttle = RefreshThrottle.objects.create(
+        key_hash="c" * 64,
+        scope=RefreshThrottle.Scope.IP,
+        hit_count=1,
+        window_started_at=now - timedelta(days=10),
+        blocked_until=None,
+    )
+    RefreshThrottle.objects.filter(pk=stale_throttle.pk).update(updated_at=now - timedelta(days=10))
+    active_throttle = RefreshThrottle.objects.create(
+        key_hash="d" * 64,
+        scope=RefreshThrottle.Scope.USER,
+        hit_count=5,
+        window_started_at=now,
+        blocked_until=now + timedelta(minutes=10),
+    )
+
+    out = StringIO()
+    call_command("prune_jwt_tokens", days=7, stdout=out)
+
+    assert not AuthSession.objects.filter(pk=stale.pk).exists()
+    assert AuthSession.objects.filter(pk=recent.pk).exists()
+    assert not RefreshThrottle.objects.filter(pk=stale_throttle.pk).exists()
+    assert RefreshThrottle.objects.filter(pk=active_throttle.pk).exists()
+    assert "Pruned 1 expired sessions and 1 stale refresh throttle rows." in out.getvalue()
+
+
+@pytest.mark.django_db
+def test_prune_jwt_tokens_rejects_invalid_retention() -> None:
+    with pytest.raises(CommandError, match="at least one day"):
+        call_command("prune_jwt_tokens", days=0, stdout=StringIO())

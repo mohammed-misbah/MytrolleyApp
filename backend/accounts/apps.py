@@ -12,5 +12,5 @@ class AccountsConfig(AppConfig):
     name = "accounts"
 
     def ready(self) -> None:
-        """Register post-migration role seeding."""
-        from accounts import signals  # noqa: F401
+        """Register role seeding and the OpenAPI Bearer security scheme."""
+        from accounts import schema, signals  # noqa: F401

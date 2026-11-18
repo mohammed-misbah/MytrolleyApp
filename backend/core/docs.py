@@ -52,9 +52,4 @@ class ApiSchemaView(JsonErrorDocsMixin, SpectacularAPIView):
 
 
 class ApiDocsView(JsonErrorDocsMixin, SpectacularSwaggerView):
-    """Swagger UI endpoint with JSON error envelopes and dynamic CSRF support."""
-
-    # The bundled script embeds the CSRF token at render time, which is stale
-    # after login/logout rotation. The project template reads the current
-    # cookie for every unsafe request instead.
-    template_name_js = "core/swagger_ui.js"
+    """Swagger UI endpoint with JSON error envelopes."""

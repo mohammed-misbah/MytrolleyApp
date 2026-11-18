@@ -9,7 +9,7 @@ from django.test import Client, override_settings
 from django.utils import timezone
 
 from accounts.models import LoginThrottle
-from tests.conftest import fetch_csrf, login, make_user, post_json
+from tests.conftest import login, make_user, post_json
 
 THROTTLE_SETTINGS = {
     "LOGIN_THROTTLE_USERNAME_LIMIT": 3,
@@ -25,14 +25,12 @@ def attempt(
     password: str,
     *,
     ip: str = "127.0.0.1",
-    csrf_token: str | None = None,
 ):
-    token = csrf_token or fetch_csrf(client)
+    # JWT login is header-credential based, so no CSRF token is involved.
     return post_json(
         client,
         "/api/v1/auth/login/",
         {"username": username, "password": password},
-        csrf_token=token,
         REMOTE_ADDR=ip,
     )
 

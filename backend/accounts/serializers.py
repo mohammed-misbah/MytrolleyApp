@@ -25,6 +25,23 @@ class LoginSerializer(StrictSerializer):
     )
 
 
+class RefreshRequestSerializer(StrictSerializer):
+    """Refresh input. API clients may send the refresh token in the body.
+
+    Browsers do not need this body: the refresh token is read from the
+    HttpOnly ``refresh_token`` cookie, and that request must also send
+    ``X-CSRFToken``.
+    """
+
+    refresh = serializers.CharField(
+        max_length=4096,
+        trim_whitespace=False,
+        write_only=True,
+        style={"input_type": "password"},
+        required=False,  # Can come from the HttpOnly cookie instead
+    )
+
+
 class UserSerializer(serializers.Serializer):
     """Read-only response contract for the current user.
 
@@ -48,7 +65,31 @@ class UserSerializer(serializers.Serializer):
         return sorted(permission for permission in BUSINESS_PERMISSIONS if obj.has_perm(permission))
 
 
-class CsrfBootstrapSerializer(serializers.Serializer):
-    """CSRF bootstrap response."""
+class LoginResponseSerializer(serializers.Serializer):
+    """Access token and safe profile returned by login and refresh.
 
-    csrfToken = serializers.CharField(read_only=True)
+    The refresh token is deliberately absent: browsers receive it only as an
+    HttpOnly cookie, and non-browser clients are documented in
+    ``docs/frontend-integration.md``.
+    """
+
+    access = serializers.CharField(read_only=True)
+    token_type = serializers.CharField(read_only=True)
+    expires_in = serializers.IntegerField(
+        read_only=True,
+        help_text="Access-token lifetime in seconds. Use the refresh cookie to obtain a new one.",
+    )
+    refresh_expires_in = serializers.IntegerField(
+        read_only=True,
+        help_text=(
+            "Refresh-token lifetime in seconds, capped by the absolute session "
+            "limit. The token itself is only sent as an HttpOnly cookie."
+        ),
+    )
+    user = UserSerializer(read_only=True)
+
+
+class LogoutResponseSerializer(serializers.Serializer):
+    """Body returned after every session for the caller has been revoked."""
+
+    message = serializers.CharField(read_only=True)

@@ -1,0 +1,376 @@
+{
+  "version": 2,
+  "skills": {
+    "architect": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/architect/SKILL.md",
+      "computedHash": "97198989f09cb92fffd39ee5e79a66d7cbda049fccbcba094d9301cfd9e7b1c3"
+    },
+    "arena": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/arena/SKILL.md",
+      "computedHash": "abd006e6605fc99b9cabe058573becd7c1b7d1b7655b3f7ef2f2d518a4ce14a9"
+    },
+    "benchmark-checklist": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/benchmark-checklist/SKILL.md",
+      "computedHash": "325e9af9a8aadabec1258a5609045f9bd36fe77bf599aff7f11b10f8442496b5"
+    },
+    "blast-radius": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/blast-radius/SKILL.md",
+      "computedHash": "bf43d18b290b021903d325301f4644a60efcefec4474324290100d6ceebaace7"
+    },
+    "bro": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/bro/SKILL.md",
+      "computedHash": "de8c6af9002cdeab2ae02a2fcf8515199b8320c5ba0b589bab806c3332b108cd"
+    },
+    "correct": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/correct/SKILL.md",
+      "computedHash": "7962b6c21f6f3207ac9bbae36ee2ddb6f7eb9ec4ba842c3906b44eba726f5502"
+    },
+    "create-formal-verification-skill": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/create-formal-verification-skill/SKILL.md",
+      "computedHash": "785a2aeec24c40d3f914980a9ac4b9e6e3139ba4669becdc2e6d96a5083405ee"
+    },
+    "create-verification-skill": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/create-verification-skill/SKILL.md",
+      "computedHash": "c23e22258d881457f32f4d23437b32c622134b03df845ff4e45d397fdafc719d"
+    },
+    "figure-it-out": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/figure-it-out/SKILL.md",
+      "computedHash": "4501d65b129713e5d244c90d47f2c92da03ce9414c032321649ee68dc664a898"
+    },
+    "how": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/how/SKILL.md",
+      "computedHash": "748ab4b13bd045d037c807652e3af9a6c6ddd712c0e722d95b1f7d6ba8a1e270"
+    },
+    "in-your-own-words": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/in-your-own-words/SKILL.md",
+      "computedHash": "c2107d92c322ee9492b6421677ab5206abb67d9fdd45a8cf10b971999bddf136"
+    },
+    "interrogate": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/interrogate/SKILL.md",
+      "computedHash": "661ac8f29149800a873ef762df3048a4237b8714dd8b2daf29cb100a5e2bf5bd"
+    },
+    "ketchup": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/ketchup/SKILL.md",
+      "computedHash": "1ddf6e022d9e9ded98a273ac2fd79f0e7e9d21c9f5d301434c1aa503f64f89eb"
+    },
+    "ketchup-video": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/ketchup-video/SKILL.md",
+      "computedHash": "c5267e670efd5392b238fbe2c30dab2c8e205a625f9cfcfb8cd3ae97430bced4"
+    },
+    "maintain-formal-verification-skill": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/maintain-formal-verification-skill/SKILL.md",
+      "computedHash": "2de1d5943995b337c743f1023ca09d3cd957255c48acc3c06f781a6fdf2e9076"
+    },
+    "maintain-verification-skill": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/maintain-verification-skill/SKILL.md",
+      "computedHash": "e6eb34b99314c8f4fd138e09f7392ea2d5626197bbbf101871dddb64e6905683"
+    },
+    "no-comments": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/no-comments/SKILL.md",
+      "computedHash": "56497ddafce39071168ccb393cf82a31b166c3d50457c82baaf595f8b5d77f94"
+    },
+    "poteto-mode": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/poteto-mode/SKILL.md",
+      "computedHash": "1fddb6fe714dc1f0db76c8445f1affe4b3b06b7ce9fd998d8ea9731bbafcc12a"
+    },
+    "principle-attack-the-premise": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-attack-the-premise/SKILL.md",
+      "computedHash": "0ab2fbfa2c045edc6caebee1a543a27769e2d55ab3a1793163fa37ca1a2462a6"
+    },
+    "principle-boundary-discipline": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-boundary-discipline/SKILL.md",
+      "computedHash": "9939a3dcda128cb07d81c261e5523c35f01e997d4f18452e0a4299340e48ecc7"
+    },
+    "principle-build-the-lever": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-build-the-lever/SKILL.md",
+      "computedHash": "0d7ce8e58b74ee3e2035a47b3e69d4584e60fcfc3885c2b3428dc66c7a4d5c38"
+    },
+    "principle-encode-lessons-in-structure": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-encode-lessons-in-structure/SKILL.md",
+      "computedHash": "2e16d196cc3b6b550848d94814cfc06a9e86facfdd754969bf618fe3248c2166"
+    },
+    "principle-exhaust-the-design-space": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-exhaust-the-design-space/SKILL.md",
+      "computedHash": "18ca96077606e406c7f9d361a36208dca13f4dbc92da4c770d63443eebab058e"
+    },
+    "principle-experience-first": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-experience-first/SKILL.md",
+      "computedHash": "7eb0778f666ffe2ff6bc1e4236bac8b3aab81dcb11b61bce89d7f98f1cecde7b"
+    },
+    "principle-explain-the-number": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-explain-the-number/SKILL.md",
+      "computedHash": "e1230ea5df633a7a914fb6e42cf78c8ca8df346e9193c97b7c882c1947da930d"
+    },
+    "principle-fix-root-causes": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-fix-root-causes/SKILL.md",
+      "computedHash": "4117629f4f5c4b8e583f902fe1f2389c9d5066bc6b5a8b6b0176c06b4ceca404"
+    },
+    "principle-foundational-thinking": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-foundational-thinking/SKILL.md",
+      "computedHash": "627ced567dc805c9b616d657ffc578ac538c1806544ff1b60b08f9b70cde8aea"
+    },
+    "principle-guard-the-context-window": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-guard-the-context-window/SKILL.md",
+      "computedHash": "5e6fdb04652ca530d14a8757c7b79dbc84edf3e36d66802b838179ba414ef6ec"
+    },
+    "principle-laziness-protocol": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-laziness-protocol/SKILL.md",
+      "computedHash": "846da6cda478ce02d901ea918a5a0288a6da2b714dd814fa876da08913bc1dc5"
+    },
+    "principle-make-operations-idempotent": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-make-operations-idempotent/SKILL.md",
+      "computedHash": "977dc3ded05c57c7a89d7b09adad3140985c832671aed604a66d458b7497c62f"
+    },
+    "principle-migrate-callers-then-delete-legacy-apis": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-migrate-callers-then-delete-legacy-apis/SKILL.md",
+      "computedHash": "490f22ace7b4bf9b4d37b76432d9ce825e3a13a217e4a204c3f102f105222ab3"
+    },
+    "principle-minimize-reader-load": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-minimize-reader-load/SKILL.md",
+      "computedHash": "20ab4bfe8ad11b18d5c8edb3c037e55c3855e76603c7e60ab3b8f7464bc4a513"
+    },
+    "principle-model-the-domain": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-model-the-domain/SKILL.md",
+      "computedHash": "6ca041780ddd5a26cc5c3393b5168b8a956412f6bf218e25a37a08634aa17940"
+    },
+    "principle-never-block-on-the-human": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-never-block-on-the-human/SKILL.md",
+      "computedHash": "0c04a00956d56da09dd9f2650017136f9b3f8c45ae4bb7fce99233cb286b2794"
+    },
+    "principle-outcome-oriented-execution": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-outcome-oriented-execution/SKILL.md",
+      "computedHash": "1c75b8f91eeb65319122cbad1ec74b69a4c05b750aef6b10baae528475deb422"
+    },
+    "principle-prove-it-works": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-prove-it-works/SKILL.md",
+      "computedHash": "d9730be58b761ad72f34cc7285582660243057296b94f7408e1050ec0fa44530"
+    },
+    "principle-redesign-from-first-principles": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-redesign-from-first-principles/SKILL.md",
+      "computedHash": "6ca8e340be9349b8b9bbd20c78985c3386b446ed0899a5ae6be2cc2ec4b2cf0d"
+    },
+    "principle-separate-before-serializing-shared-state": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-separate-before-serializing-shared-state/SKILL.md",
+      "computedHash": "18727e6b4451bbaef07f03cf95181654936daf8f34be323560eafd7d2b6c345f"
+    },
+    "principle-sequence-verifiable-units": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-sequence-verifiable-units/SKILL.md",
+      "computedHash": "432322de8be7c89f1765890f789c4a79aed1b000a5f7c0c2d4fd96eeedd4e753"
+    },
+    "principle-subtract-before-you-add": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-subtract-before-you-add/SKILL.md",
+      "computedHash": "c61e48a30f13ee44390bd336b92630c080f27f4a2d8ca42395a6b1dfe2888e0a"
+    },
+    "principle-test-behavior-not-implementation": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-test-behavior-not-implementation/SKILL.md",
+      "computedHash": "62fa1d98518e3806db08ec20859020588b9e5c33af97666f514c15f50b569679"
+    },
+    "principle-type-system-discipline": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/principle-type-system-discipline/SKILL.md",
+      "computedHash": "f895f7013121ff0e6243efcd5fbbf98525154171e7473f2d8edc7dfd4730a833"
+    },
+    "recall": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/recall/SKILL.md",
+      "computedHash": "5cdbc32eb18989f671b3a3b1408265ced7e48c115a2c6cb6f8988e2b3d7443b3"
+    },
+    "sharpen": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/sharpen/SKILL.md",
+      "computedHash": "585e1b42bf975b82659bb1a8c9ad9a15af6be73149ca456f26a9bad7d97a0d81"
+    },
+    "show-me-your-work": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/show-me-your-work/SKILL.md",
+      "computedHash": "e41b74a3c6426fe42535cf5f541360ece449e07d875925d720808a5a86177b86"
+    },
+    "statechart": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/statechart/SKILL.md",
+      "computedHash": "adf9ede01f0f5bb267af522e30ee115a93575dbf9a5c49741733a1c60ed1dc20"
+    },
+    "swarm": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/swarm/SKILL.md",
+      "computedHash": "6392bd79ba22d7e95718fa1c5d2809ddcffb9d0a5cdc3add97aedd2c3881e788"
+    },
+    "tdd": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/tdd/SKILL.md",
+      "computedHash": "9640233bd55b075c0af3f30c4c828fce5f51f4ecec9e80c81fb0be84bfcbae56"
+    },
+    "teach": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/teach/SKILL.md",
+      "computedHash": "940deaaa99d8adbc9f90c5ce5cc66106553e4342a3761b8ec589cbaed03d5006"
+    },
+    "technical-writing": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/technical-writing/SKILL.md",
+      "computedHash": "a38ab910f132d6fbbf7249f46488238aa3032405b1f31ad2f3c7352fe5ca2d16"
+    },
+    "typescript-best-practices": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/typescript-best-practices/SKILL.md",
+      "computedHash": "1a631514a238d60b2875182ba7e80df07791a2de23aad713858464882fe3d80a"
+    },
+    "unslop": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/unslop/SKILL.md",
+      "computedHash": "bd12759050c0ec80aa342ec1499727bd1989b2efb731f36e7ed83869eee7f781"
+    },
+    "why": {
+      "source": "painhardcore/pstack",
+      "commit": "af212355c0a8f21d2545f20042628f3911048a4f",
+      "sourceType": "github",
+      "skillPath": "skills/why/SKILL.md",
+      "computedHash": "6e4c496b3296b9a147e9e34c09e7b9234d7099239ed337759c776194a5610e62"
+    }
+  }
+}

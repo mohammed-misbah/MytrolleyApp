@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from django.urls import path
 
-from accounts.views import CsrfBootstrapView, LoginView, LogoutView, MeView
+from accounts.views import LoginView, LogoutView, MeView, RefreshView
 
 app_name = "accounts"
 
 urlpatterns = [
-    path("csrf/", CsrfBootstrapView.as_view(), name="csrf"),
     path("login/", LoginView.as_view(), name="login"),
+    path("refresh/", RefreshView.as_view(), name="refresh"),
     path("logout/", LogoutView.as_view(), name="logout"),
     path("me/", MeView.as_view(), name="me"),
 ]

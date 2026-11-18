@@ -7,6 +7,7 @@ configuration; failures name the variable but never print its value.
 
 from __future__ import annotations
 
+from datetime import timedelta
 from pathlib import Path
 
 from config.env import (
@@ -15,6 +16,7 @@ from config.env import (
     get_db_identifier,
     get_env,
     get_int,
+    get_jwt_signing_key,
     get_list,
     get_networks,
     get_origins,
@@ -170,9 +172,8 @@ SESSION_COOKIE_AGE = 28_800  # 8 hours, sliding; see docs/security.md
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 CSRF_COOKIE_NAME = "csrftoken"
-CSRF_COOKIE_HTTPONLY = False  # The dashboard must send X-CSRFToken.
+CSRF_COOKIE_HTTPONLY = False  # The browser must echo this value in X-CSRFToken.
 CSRF_COOKIE_SAMESITE = "Lax"
-CSRF_COOKIE_AGE = 28_800
 CSRF_USE_SESSIONS = False
 CSRF_TRUSTED_ORIGINS = get_origins("CSRF_TRUSTED_ORIGINS")
 CSRF_FAILURE_VIEW = "config.views.csrf_failure"
@@ -194,11 +195,69 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if TRUST_PROXY_HEA
 USE_X_FORWARDED_HOST = False
 
 # ---------------------------------------------------------------------------
+# JWT authentication
+# ---------------------------------------------------------------------------
+# Access token lifetime (default 5 min). Refresh token lifetime (default 1 day).
+# Absolute session limit: rotation never extends beyond this value (default 7 days).
+JWT_ACCESS_TOKEN_LIFETIME_SECONDS = get_int(
+    "JWT_ACCESS_TOKEN_LIFETIME_SECONDS",
+    default=300,
+    minimum=60,
+    maximum=3600,
+)
+JWT_REFRESH_TOKEN_LIFETIME_SECONDS = get_int(
+    "JWT_REFRESH_TOKEN_LIFETIME_SECONDS",
+    default=86_400,
+    minimum=300,
+    maximum=604_800,
+)
+JWT_ABSOLUTE_SESSION_SECONDS = get_int(
+    "JWT_ABSOLUTE_SESSION_SECONDS",
+    default=604_800,
+    minimum=3600,
+    maximum=2_592_000,
+)
+# Cookie refresh is authorized by an ambient cookie, so it also requires the
+# CSRF cookie. That cookie must outlive the refresh cookie or an idle browser
+# could not refresh; tie it to the hard session cap.
+CSRF_COOKIE_AGE = JWT_ABSOLUTE_SESSION_SECONDS
+JWT_ISSUER = "mytrolley-api"
+JWT_AUDIENCE = "mytrolley-api"
+# Validated at startup: at least 50 characters and never equal to SECRET_KEY.
+JWT_SIGNING_KEY = get_jwt_signing_key()
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(seconds=JWT_ACCESS_TOKEN_LIFETIME_SECONDS),
+    "REFRESH_TOKEN_LIFETIME": timedelta(seconds=JWT_REFRESH_TOKEN_LIFETIME_SECONDS),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": False,
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": JWT_SIGNING_KEY,
+    "VERIFYING_KEY": JWT_SIGNING_KEY,
+    "AUDIENCE": JWT_AUDIENCE,
+    "ISSUER": JWT_ISSUER,
+    "JWK_URL": None,
+    "LEEWAY": 0,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    "AUTH_HEADER_NAME": "HTTP_AUTHORIZATION",
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
+    "USER_AUTHENTICATION_RULE": (
+        "rest_framework_simplejwt.authentication.default_user_authentication_rule"
+    ),
+    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
+    "TOKEN_TYPE_CLAIM": "token_type",
+    "TOKEN_USER_CLASS": "rest_framework_simplejwt.models.TokenUser",
+    "JTI_CLAIM": "jti",
+}
+
+# ---------------------------------------------------------------------------
 # API and request-size limits
 # ---------------------------------------------------------------------------
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.SessionAuthentication",
+        "accounts.authentication.SessionAwareJWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
@@ -220,23 +279,28 @@ SPECTACULAR_SETTINGS = {
     "TITLE": "MyTrolley API",
     "VERSION": "1.0.0",
     "DESCRIPTION": (
-        "Milestone 1 authentication, authorization and health API.\n\n"
-        "Authentication uses Django database-backed sessions and a CSRF "
-        "cookie. Fetch `/api/v1/auth/csrf/` to set the `csrftoken` cookie; "
-        "send either the masked token from the response or the cookie value "
-        "in `X-CSRFToken` for login, logout and every authenticated unsafe "
-        "request. The two values are not expected to be identical. Login and "
-        "logout rotate the token, so clients re-read the cookie (Swagger UI "
-        "does this automatically). Errors use the documented `error` envelope."
+        "JWT Bearer authentication for the MyTrolley API.\n\n"
+        "1. `POST /api/v1/auth/login/` with a username and password.\n"
+        "2. Click **Authorize** and paste only the **access** token.\n"
+        "3. Protected endpoints send `Authorization: Bearer <access>`.\n\n"
+        "Access tokens are short-lived. Browsers renew them automatically with "
+        "the HttpOnly refresh cookie; that endpoint is intentionally not listed "
+        "here. Logout revokes every session for the caller immediately. The "
+        "access token is held in memory only and is never written to browser "
+        "storage. Errors use the documented `error` envelope."
     ),
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_REQUEST": True,
     "SORT_OPERATIONS": False,
     "SCHEMA_PATH_PREFIX": "/api/v1",
     "SWAGGER_UI_SETTINGS": {
-        "withCredentials": True,
+        # Tokens live only in the Swagger page's memory. Reloading requires
+        # pasting the access token again; nothing is persisted in storage.
+        "persistAuthorization": False,
+        "withCredentials": False,
         "tryItOutEnabled": True,
         "deepLinking": True,
+        "displayRequestDuration": True,
     },
 }
 
@@ -278,6 +342,34 @@ LOGIN_THROTTLE_WINDOW_SECONDS = get_int(
 )
 LOGIN_THROTTLE_COOLDOWN_SECONDS = get_int(
     "LOGIN_THROTTLE_COOLDOWN_SECONDS",
+    default=900,
+    minimum=60,
+    maximum=86_400,
+)
+
+# Refresh volume limits are deliberately generous: a legitimate client rotates
+# once per access-token lifetime (about 12 times per hour), while the limits
+# stop a compromised token from being hammered.
+REFRESH_THROTTLE_USER_LIMIT = get_int(
+    "REFRESH_THROTTLE_USER_LIMIT",
+    default=120,
+    minimum=1,
+    maximum=10_000,
+)
+REFRESH_THROTTLE_IP_LIMIT = get_int(
+    "REFRESH_THROTTLE_IP_LIMIT",
+    default=300,
+    minimum=1,
+    maximum=20_000,
+)
+REFRESH_THROTTLE_WINDOW_SECONDS = get_int(
+    "REFRESH_THROTTLE_WINDOW_SECONDS",
+    default=900,
+    minimum=60,
+    maximum=86_400,
+)
+REFRESH_THROTTLE_COOLDOWN_SECONDS = get_int(
+    "REFRESH_THROTTLE_COOLDOWN_SECONDS",
     default=900,
     minimum=60,
     maximum=86_400,
