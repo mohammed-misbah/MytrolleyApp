@@ -78,6 +78,22 @@ def post_json(
     )
 
 
+def patch_json(
+    client: Client,
+    url: str,
+    payload: dict[str, Any] | str,
+    **extra: Any,
+):
+    """PATCH JSON without any CSRF header."""
+    body = payload if isinstance(payload, str) else json.dumps(payload)
+    return client.patch(
+        url,
+        data=body,
+        content_type="application/json",
+        **extra,
+    )
+
+
 def auth_header(access_token: str) -> dict[str, str]:
     """Build the DRF/Django test-client Authorization header."""
     return {"HTTP_AUTHORIZATION": f"Bearer {access_token}"}

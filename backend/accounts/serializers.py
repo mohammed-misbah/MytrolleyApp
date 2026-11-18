@@ -55,8 +55,15 @@ class UserSerializer(serializers.Serializer):
     first_name = serializers.CharField(read_only=True)
     last_name = serializers.CharField(read_only=True)
     is_staff = serializers.BooleanField(read_only=True)
+    is_active = serializers.BooleanField(read_only=True)
+    full_name = serializers.SerializerMethodField()
+    date_joined = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
     roles = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
+
+    def get_full_name(self, obj: Any) -> str:
+        return str(obj.get_full_name() or "").strip()
 
     def get_roles(self, obj: Any) -> list[str]:
         return sorted(group.name for group in obj.groups.all())
@@ -93,3 +100,6 @@ class LogoutResponseSerializer(serializers.Serializer):
     """Body returned after every session for the caller has been revoked."""
 
     message = serializers.CharField(read_only=True)
+
+
+

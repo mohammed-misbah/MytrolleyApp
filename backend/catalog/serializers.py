@@ -39,7 +39,10 @@ class CategorySerializer(serializers.ModelSerializer):
         return []
 
     def get_product_count(self, obj: Category) -> int:
-        return obj.products.filter(is_active=True).count()
+        # Category membership is independent of product status. Count every
+        # associated row that still exists, whether Active or Inactive; rows
+        # removed from the database are excluded by the relation itself.
+        return obj.products.count()
 
 
 class CategoryWriteSerializer(serializers.ModelSerializer):
@@ -61,7 +64,22 @@ class CategoryWriteSerializer(serializers.ModelSerializer):
     def validate_name(self, value: str) -> str:
         if not value.strip():
             raise serializers.ValidationError("Category name cannot be empty.")
-        return value.strip()
+        value = value.strip()
+        queryset = Category.objects.filter(name__iexact=value)
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise serializers.ValidationError("A category with this name already exists.")
+        return value
+
+    def validate_slug(self, value: str) -> str:
+        # Slug is auto-generated from name, but validate if provided
+        queryset = Category.objects.filter(slug__iexact=value)
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise serializers.ValidationError("A category with this slug already exists.")
+        return value
 
 
 class StoreSerializer(serializers.ModelSerializer):
@@ -157,7 +175,8 @@ class ProductAttributeWriteSerializer(serializers.ModelSerializer):
             if self.instance:
                 queryset = queryset.exclude(pk=self.instance.pk)
             if queryset.exists():
-                raise serializers.ValidationError({"name": "An attribute with this name already exists for this product."})
+                message = f"An attribute with the name '{name}' already exists for this product."
+                raise serializers.ValidationError({"name": message})
         return attrs
 
 
@@ -345,8 +364,20 @@ class ProductSearchSerializer(serializers.Serializer):
     store = serializers.IntegerField(required=False, help_text="Filter by store ID")
     is_active = serializers.BooleanField(required=False, help_text="Filter by active status")
     is_available = serializers.BooleanField(required=False, help_text="Filter by availability in store")
-    min_price = serializers.DecimalField(max_digits=12, decimal_places=4, required=False, help_text="Minimum price")
-    max_price = serializers.DecimalField(max_digits=12, decimal_places=4, required=False, help_text="Maximum price")
+    min_price = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=4,
+        required=False,
+        help_text="Minimum price",
+        error_messages={"invalid": "Please enter a valid price."},
+    )
+    max_price = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=4,
+        required=False,
+        help_text="Maximum price",
+        error_messages={"invalid": "Please enter a valid price."},
+    )
     ordering = serializers.ChoiceField(
         choices=[
             "name",
@@ -362,6 +393,47 @@ class ProductSearchSerializer(serializers.Serializer):
     )
     page = serializers.IntegerField(default=1, min_value=1)
     page_size = serializers.IntegerField(default=20, min_value=1, max_value=100)
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        """Reject invalid price ranges and price sorting without a store."""
+        ordering = attrs.get("ordering", "name")
+        if ordering in ("price", "-price"):
+            store_id = attrs.get("store")
+            if store_id is None:
+                raise serializers.ValidationError(
+                    {"ordering": "Select a store to sort products by price."}
+                )
+            if not Store.objects.filter(pk=store_id).exists():
+                raise serializers.ValidationError(
+                    {"store": "Select a valid store to sort products by price."}
+                )
+
+        minimum = attrs.get("min_price")
+        maximum = attrs.get("max_price")
+        if minimum is not None or maximum is not None:
+            store_id = attrs.get("store")
+            if store_id is None:
+                raise serializers.ValidationError(
+                    {"store": "Select a store to filter products by price."}
+                )
+            if not Store.objects.filter(pk=store_id).exists():
+                raise serializers.ValidationError(
+                    {"store": "Select a valid store to filter products by price."}
+                )
+
+        if minimum is not None and minimum < 0:
+            raise serializers.ValidationError(
+                {"min_price": "Price must be greater than or equal to 0."}
+            )
+        if maximum is not None and maximum < 0:
+            raise serializers.ValidationError(
+                {"max_price": "Price must be greater than or equal to 0."}
+            )
+        if minimum is not None and maximum is not None and minimum > maximum:
+            raise serializers.ValidationError(
+                {"min_price": "Minimum price cannot be greater than maximum price."}
+            )
+        return attrs
 
     def to_internal_value(self, data):
         """Only include boolean fields in validated_data if they were explicitly provided."""

@@ -12,6 +12,26 @@ from PIL import Image
 from catalog.models import Category, Product, ProductAttribute, ProductImage, ProductStore, Store
 
 
+@pytest.fixture
+def category(db) -> Category:
+    return Category.objects.create(name="Electronics", description="Electronic devices")
+
+
+@pytest.fixture
+def store(db) -> Store:
+    return Store.objects.create(name="Store A", code="STA", address="123 Main St")
+
+
+@pytest.fixture
+def product(db, category) -> Product:
+    return Product.objects.create(name="Laptop", description="Gaming laptop", category=category)
+
+
+@pytest.fixture
+def product_store(db, product, store) -> ProductStore:
+    return ProductStore.objects.create(product=product, store=store, price=Decimal("15.00"), quantity=100)
+
+
 @pytest.mark.django_db
 class TestCategoryModel:
     """Category model tests."""

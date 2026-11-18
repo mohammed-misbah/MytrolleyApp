@@ -208,7 +208,7 @@ class LoginView(APIView):
                 "Login request",
                 value={
                     "username": "administrator",
-                    "password": "use-your-own-password",
+                    "password": "password",
                 },
                 request_only=True,
             ),

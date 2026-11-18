@@ -220,6 +220,10 @@ class ProductStore(models.Model):
                 fields=["product", "store"],
                 name="unique_product_store",
             ),
+            models.CheckConstraint(
+                condition=models.Q(price__gte=0),
+                name="productstore_price_gte_zero",
+            ),
         ]
         indexes = [
             models.Index(fields=["product", "is_available"], name="prod_store_avail_idx"),

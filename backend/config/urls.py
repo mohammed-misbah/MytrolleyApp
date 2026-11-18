@@ -12,6 +12,7 @@ from core.docs import ApiDocsView, ApiSchemaView, docs_permission_classes
 urlpatterns: list[URLPattern | URLResolver] = [
     path("api/v1/health/", include("core.urls")),
     path("api/v1/auth/", include("accounts.urls")),
+    path("api/v1/", include("catalog.urls")),
 ]
 
 if settings.ENABLE_API_DOCS:

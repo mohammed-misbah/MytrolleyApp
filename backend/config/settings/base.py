@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "accounts",
     "core",
+    "catalog",
 ]
 
 MIDDLEWARE = [
@@ -202,12 +203,13 @@ USE_X_FORWARDED_HOST = False
 JWT_ACCESS_TOKEN_LIFETIME_SECONDS = get_int(
     "JWT_ACCESS_TOKEN_LIFETIME_SECONDS",
     default=300,
-    minimum=60,
+    minimum=30,
     maximum=3600,
 )
+
 JWT_REFRESH_TOKEN_LIFETIME_SECONDS = get_int(
     "JWT_REFRESH_TOKEN_LIFETIME_SECONDS",
-    default=86_400,
+    default=86400,
     minimum=300,
     maximum=604_800,
 )
