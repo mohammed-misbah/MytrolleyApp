@@ -8,7 +8,7 @@ from typing import Any
 from rest_framework import serializers
 
 from catalog.models import Category, Product, ProductAttribute, ProductImage, ProductStore, Store
-from core.serializers import StrictSerializer
+from core.serializers import StrictModelSerializer
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -35,7 +35,8 @@ class CategorySerializer(serializers.ModelSerializer):
 
     def get_children(self, obj: Category) -> list[dict]:
         if obj.children.exists():
-            return CategorySerializer(obj.children.filter(is_active=True), many=True).data
+            children = CategorySerializer(obj.children.filter(is_active=True), many=True).data
+            return [dict(child) for child in children]
         return []
 
     def get_product_count(self, obj: Category) -> int:
@@ -45,12 +46,14 @@ class CategorySerializer(serializers.ModelSerializer):
         return obj.products.count()
 
 
-class CategoryWriteSerializer(serializers.ModelSerializer):
+class CategoryWriteSerializer(StrictModelSerializer):
     """Category serializer for create/update operations."""
 
     name = serializers.CharField(max_length=100)
     description = serializers.CharField(required=False, allow_blank=True)
-    parent = serializers.PrimaryKeyRelatedField(
+    # django-stubs types the DRF Field base as BaseSerializer; the runtime
+    # PrimaryKeyRelatedField assignment is valid and intentional.
+    parent = serializers.PrimaryKeyRelatedField(  # type: ignore[assignment]
         queryset=Category.objects.all(),
         required=False,
         allow_null=True,
@@ -106,7 +109,7 @@ class StoreSerializer(serializers.ModelSerializer):
         return obj.product_associations.filter(is_available=True).count()
 
 
-class StoreWriteSerializer(serializers.ModelSerializer):
+class StoreWriteSerializer(StrictModelSerializer):
     """Store serializer for create/update operations."""
 
     name = serializers.CharField(max_length=100)
@@ -146,7 +149,7 @@ class ProductAttributeSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
 
-class ProductAttributeWriteSerializer(serializers.ModelSerializer):
+class ProductAttributeWriteSerializer(StrictModelSerializer):
     """Product attribute serializer for create/update operations."""
 
     name = serializers.CharField(max_length=100)
@@ -166,7 +169,7 @@ class ProductAttributeWriteSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Attribute value cannot be empty.")
         return value.strip()
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         # Check for duplicate attribute name for the same product
         product = self.context.get("product")
         if product:
@@ -203,12 +206,12 @@ class ProductImageSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if obj.image and hasattr(obj.image, "url"):
             if request:
-                return request.build_absolute_uri(obj.image.url)
-            return obj.image.url
+                return str(request.build_absolute_uri(str(obj.image.url)))
+            return str(obj.image.url)
         return ""
 
 
-class ProductImageWriteSerializer(serializers.ModelSerializer):
+class ProductImageWriteSerializer(StrictModelSerializer):
     """Product image upload serializer."""
 
     class Meta:
@@ -241,7 +244,7 @@ class ProductStoreSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
 
-class ProductStoreWriteSerializer(serializers.ModelSerializer):
+class ProductStoreWriteSerializer(StrictModelSerializer):
     """Product-Store association serializer for create/update operations."""
 
     store_id = serializers.PrimaryKeyRelatedField(
@@ -265,7 +268,7 @@ class ProductStoreWriteSerializer(serializers.ModelSerializer):
 class ProductListSerializer(serializers.ModelSerializer):
     """Lightweight product serializer for list views."""
 
-    category = serializers.StringRelatedField()
+    category: serializers.StringRelatedField = serializers.StringRelatedField()
     primary_image = serializers.SerializerMethodField()
     store_price = serializers.SerializerMethodField()
 
@@ -285,20 +288,30 @@ class ProductListSerializer(serializers.ModelSerializer):
         ]
 
     def get_primary_image(self, obj: Product) -> dict | None:
-        primary = obj.images.filter(is_primary=True).first()
-        if primary:
-            return ProductImageSerializer(primary, context=self.context).data
-        first = obj.images.first()
-        if first:
-            return ProductImageSerializer(first, context=self.context).data
+        # Iterate the prefetched relation; filtering it would issue one query
+        # per product and reintroduce an N+1 problem.
+        images = list(obj.images.all())
+        image = next((item for item in images if item.is_primary), None)
+        if image is None and images:
+            image = images[0]
+        if image is not None:
+            return ProductImageSerializer(image, context=self.context).data
         return None
 
     def get_store_price(self, obj: Product) -> dict | None:
         """Get price for a specific store if provided in context."""
         store_id = self.context.get("store_id")
         if store_id:
-            association = obj.store_associations.filter(store_id=store_id, is_available=True).first()
-            if association:
+            associations = list(obj.store_associations.all())
+            association = next(
+                (
+                    item
+                    for item in associations
+                    if item.store_id == store_id and item.is_available
+                ),
+                None,
+            )
+            if association is not None:
                 return ProductStoreSerializer(association, context=self.context).data
         return None
 
@@ -335,7 +348,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "slug", "created_at", "updated_at"]
 
 
-class ProductWriteSerializer(serializers.ModelSerializer):
+class ProductWriteSerializer(StrictModelSerializer):
     """Product serializer for create/update operations."""
 
     name = serializers.CharField(max_length=200)
@@ -363,7 +376,9 @@ class ProductSearchSerializer(serializers.Serializer):
     category = serializers.IntegerField(required=False, help_text="Filter by category ID")
     store = serializers.IntegerField(required=False, help_text="Filter by store ID")
     is_active = serializers.BooleanField(required=False, help_text="Filter by active status")
-    is_available = serializers.BooleanField(required=False, help_text="Filter by availability in store")
+    is_available = serializers.BooleanField(
+        required=False, help_text="Filter by availability in store"
+    )
     min_price = serializers.DecimalField(
         max_digits=12,
         decimal_places=4,
@@ -435,7 +450,7 @@ class ProductSearchSerializer(serializers.Serializer):
             )
         return attrs
 
-    def to_internal_value(self, data):
+    def to_internal_value(self, data: Any) -> dict[str, Any]:
         """Only include boolean fields in validated_data if they were explicitly provided."""
         # Check which boolean fields were explicitly provided
         provided_fields = set()
@@ -443,12 +458,12 @@ class ProductSearchSerializer(serializers.Serializer):
             for field in ("is_active", "is_available"):
                 if field in data:
                     provided_fields.add(field)
-        
-        ret = super().to_internal_value(data)
-        
+
+        ret: dict[str, Any] = dict(super().to_internal_value(data))
+
         # Remove boolean fields that weren't explicitly provided
         for field in ("is_active", "is_available"):
             if field not in provided_fields:
                 ret.pop(field, None)
-        
+
         return ret

@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from decimal import Decimal
-from typing import Any
+from functools import wraps
+from typing import Any, TypeVar
 
-from django.db import transaction
-from django.db.models import Q
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import IntegrityError, transaction
+from django.db.models import F, Q
 from django.http import Http404
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
@@ -34,10 +38,38 @@ from catalog.serializers import (
     StoreSerializer,
     StoreWriteSerializer,
 )
+from core.errors import api_error_response
 from core.schema import ErrorEnvelopeSerializer
-from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 
 _logger = logging.getLogger("mytrolley.catalog")
+
+_F = TypeVar("_F", bound=Callable[..., Response])
+
+
+def integrity_conflict(message: str) -> Callable[[_F], _F]:
+    """Return a structured 409 when a database uniqueness conflict races
+    past serializer validation. Serializer errors remain 400 responses."""
+
+    def decorator(view: _F) -> _F:
+        @wraps(view)
+        def wrapper(self: Any, request: Request, *args: Any, **kwargs: Any) -> Response:
+            try:
+                return view(self, request, *args, **kwargs)
+            except (IntegrityError, DjangoValidationError):
+                _logger.warning(
+                    "catalog.integrity_conflict",
+                    extra={"event": "catalog.integrity_conflict"},
+                )
+                return api_error_response(
+                    request._request,
+                    code="CONFLICT",
+                    message=message,
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+        return wrapper  # type: ignore[return-value]
+
+    return decorator
 
 
 class CategoryListCreateView(APIView):
@@ -89,6 +121,7 @@ class CategoryListCreateView(APIView):
             403: ErrorEnvelopeSerializer,
         },
     )
+    @integrity_conflict("A category with this name already exists.")
     def post(self, request: Request) -> Response:
         serializer = CategoryWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -109,7 +142,7 @@ class CategoryDetailView(APIView):
         try:
             return Category.objects.select_related("parent").prefetch_related("children").get(pk=pk)
         except Category.DoesNotExist:
-            raise Http404
+            raise Http404 from None
 
     @extend_schema(
         tags=["Categories"],
@@ -140,6 +173,7 @@ class CategoryDetailView(APIView):
             404: ErrorEnvelopeSerializer,
         },
     )
+    @integrity_conflict("A category with this name already exists.")
     def patch(self, request: Request, pk: int) -> Response:
         category = self.get_object(pk)
         serializer = CategoryWriteSerializer(category, data=request.data, partial=True)
@@ -162,8 +196,10 @@ class CategoryDetailView(APIView):
     def delete(self, request: Request, pk: int) -> Response:
         category = self.get_object(pk)
         if category.products.exists():
-            return Response(
-                {"error": {"code": "CONFLICT", "message": "Cannot delete category with associated products."}},
+            return api_error_response(
+                request._request,
+                code="CONFLICT",
+                message="Cannot delete category with associated products.",
                 status=status.HTTP_409_CONFLICT,
             )
         category.delete()
@@ -219,6 +255,7 @@ class StoreListCreateView(APIView):
             403: ErrorEnvelopeSerializer,
         },
     )
+    @integrity_conflict("A store with this code already exists.")
     def post(self, request: Request) -> Response:
         serializer = StoreWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -236,7 +273,7 @@ class StoreDetailView(APIView):
         try:
             return Store.objects.get(pk=pk)
         except Store.DoesNotExist:
-            raise Http404
+            raise Http404 from None
 
     @extend_schema(
         tags=["Stores"],
@@ -267,6 +304,7 @@ class StoreDetailView(APIView):
             404: ErrorEnvelopeSerializer,
         },
     )
+    @integrity_conflict("A store with this code already exists.")
     def patch(self, request: Request, pk: int) -> Response:
         store = self.get_object(pk)
         serializer = StoreWriteSerializer(store, data=request.data, partial=True)
@@ -289,8 +327,10 @@ class StoreDetailView(APIView):
     def delete(self, request: Request, pk: int) -> Response:
         store = self.get_object(pk)
         if store.product_associations.exists():
-            return Response(
-                {"error": {"code": "CONFLICT", "message": "Cannot delete store with associated products."}},
+            return api_error_response(
+                request._request,
+                code="CONFLICT",
+                message="Cannot delete store with associated products.",
                 status=status.HTTP_409_CONFLICT,
             )
         store.delete()
@@ -319,16 +359,36 @@ class ProductListCreateView(APIView):
             "- `page` / `page_size`: Pagination"
         ),
         parameters=[
-            OpenApiParameter("search", str, OpenApiParameter.QUERY, description="Search in name and description"),
+            OpenApiParameter(
+                "search", str, OpenApiParameter.QUERY, description="Search in name and description"
+            ),
             OpenApiParameter("category", int, OpenApiParameter.QUERY, description="Category ID"),
             OpenApiParameter("store", int, OpenApiParameter.QUERY, description="Store ID"),
-            OpenApiParameter("is_active", bool, OpenApiParameter.QUERY, description="Filter by active status"),
-            OpenApiParameter("is_available", bool, OpenApiParameter.QUERY, description="Filter by availability in store"),
-            OpenApiParameter("min_price", Decimal, OpenApiParameter.QUERY, description="Minimum price"),
-            OpenApiParameter("max_price", Decimal, OpenApiParameter.QUERY, description="Maximum price"),
-            OpenApiParameter("ordering", str, OpenApiParameter.QUERY, enum=["name", "-name", "created_at", "-created_at", "price", "-price"]),
+            OpenApiParameter(
+                "is_active", bool, OpenApiParameter.QUERY, description="Filter by active status"
+            ),
+            OpenApiParameter(
+                "is_available",
+                bool,
+                OpenApiParameter.QUERY,
+                description="Filter by availability in store",
+            ),
+            OpenApiParameter(
+                "min_price", Decimal, OpenApiParameter.QUERY, description="Minimum price"
+            ),
+            OpenApiParameter(
+                "max_price", Decimal, OpenApiParameter.QUERY, description="Maximum price"
+            ),
+            OpenApiParameter(
+                "ordering",
+                str,
+                OpenApiParameter.QUERY,
+                enum=["name", "-name", "created_at", "-created_at", "price", "-price"],
+            ),
             OpenApiParameter("page", int, OpenApiParameter.QUERY, description="Page number"),
-            OpenApiParameter("page_size", int, OpenApiParameter.QUERY, description="Page size (max 100)"),
+            OpenApiParameter(
+                "page_size", int, OpenApiParameter.QUERY, description="Page size (max 100)"
+            ),
         ],
         responses={
             200: ProductListSerializer(many=True),
@@ -342,19 +402,24 @@ class ProductListCreateView(APIView):
         search_serializer.is_valid(raise_exception=True)
         params = search_serializer.validated_data
 
-        queryset = Product.objects.select_related("category").prefetch_related("images", "store_associations__store")
+        queryset = Product.objects.select_related("category").prefetch_related(
+            "images", "store_associations__store"
+        )
 
-        if params.get("search"):
-            search_term = params["search"]
+        # All filters are applied once; the previous implementation repeated
+        # this entire block, producing a second COUNT query.
+        search_term = params.get("search")
+        if search_term:
             queryset = queryset.filter(
                 Q(name__icontains=search_term) | Q(description__icontains=search_term)
             )
 
-        if params.get("category"):
-            queryset = queryset.filter(category_id=params["category"])
+        category_id = params.get("category")
+        if category_id:
+            queryset = queryset.filter(category_id=category_id)
 
-        if params.get("store"):
-            store_id = params["store"]
+        store_id = params.get("store")
+        if store_id:
             queryset = queryset.filter(
                 store_associations__store_id=store_id,
                 store_associations__is_available=True,
@@ -363,8 +428,7 @@ class ProductListCreateView(APIView):
         if params.get("is_active") is not None:
             queryset = queryset.filter(is_active=params["is_active"])
 
-        if params.get("is_available") is not None and params.get("store"):
-            store_id = params["store"]
+        if params.get("is_available") is not None and store_id:
             if params["is_available"]:
                 queryset = queryset.filter(
                     store_associations__store_id=store_id,
@@ -376,97 +440,34 @@ class ProductListCreateView(APIView):
                     store_associations__is_available=True,
                 )
 
-        if params.get("min_price") is not None and params.get("store"):
-            queryset = queryset.filter(
-                store_associations__store_id=params["store"],
-                store_associations__price__gte=params["min_price"],
-            )
-
-        if params.get("max_price") is not None and params.get("store"):
-            queryset = queryset.filter(
-                store_associations__store_id=params["store"],
-                store_associations__price__lte=params["max_price"],
-            )
-
-        ordering = params.get("ordering", "name")
-        if ordering in ("price", "-price") and params.get("store"):
-            # Annotate with store-specific price for ordering
-            from django.db.models import F
-            queryset = queryset.filter(store_associations__store_id=params["store"]).annotate(
-                store_price=F("store_associations__price")
-            ).order_by(f"{'-' if ordering.startswith('-') else ''}store_price")
-        else:
-            queryset = queryset.order_by(ordering)
-
-        # Pagination
-        page = params.get("page", 1)
-        page_size = min(params.get("page_size", 20), 100)
-        offset = (page - 1) * page_size
-
-        total = queryset.distinct().count()
-        products = queryset.distinct()[offset : offset + page_size]
-
-        if params.get("search"):
-            search_term = params["search"]
-            queryset = queryset.filter(
-                Q(name__icontains=search_term) | Q(description__icontains=search_term)
-            )
-
-        if params.get("category"):
-            queryset = queryset.filter(category_id=params["category"])
-
-        if params.get("store"):
-            store_id = params["store"]
+        if params.get("min_price") is not None and store_id:
             queryset = queryset.filter(
                 store_associations__store_id=store_id,
-                store_associations__is_available=True,
-            )
-
-        if params.get("is_active") is not None:
-            queryset = queryset.filter(is_active=params["is_active"])
-
-        if params.get("is_available") is not None and params.get("store"):
-            store_id = params["store"]
-            if params["is_available"]:
-                queryset = queryset.filter(
-                    store_associations__store_id=store_id,
-                    store_associations__is_available=True,
-                )
-            else:
-                queryset = queryset.exclude(
-                    store_associations__store_id=store_id,
-                    store_associations__is_available=True,
-                )
-
-        if params.get("min_price") is not None and params.get("store"):
-            queryset = queryset.filter(
-                store_associations__store_id=params["store"],
                 store_associations__price__gte=params["min_price"],
             )
 
-        if params.get("max_price") is not None and params.get("store"):
+        if params.get("max_price") is not None and store_id:
             queryset = queryset.filter(
-                store_associations__store_id=params["store"],
+                store_associations__store_id=store_id,
                 store_associations__price__lte=params["max_price"],
             )
 
         ordering = params.get("ordering", "name")
-        if ordering in ("price", "-price") and params.get("store"):
-            # Annotate with store-specific price for ordering
-            from django.db.models import F
-            queryset = queryset.filter(store_associations__store_id=params["store"]).annotate(
-                store_price=F("store_associations__price")
-            ).order_by(f"{'-' if ordering.startswith('-') else ''}store_price")
+        if ordering in ("price", "-price") and store_id:
+            # Price sorting is numeric and uses the selected store's price.
+            queryset = queryset.annotate(store_price=F("store_associations__price")).order_by(
+                f"{'-' if ordering.startswith('-') else ''}store_price"
+            )
         else:
             queryset = queryset.order_by(ordering)
 
-        # Pagination
         page = params.get("page", 1)
         page_size = min(params.get("page_size", 20), 100)
         offset = (page - 1) * page_size
 
-        total = queryset.distinct().count()
-        products = queryset.distinct()[offset : offset + page_size]
+        distinct_queryset = queryset.distinct()
+        total = distinct_queryset.count()
+        products = distinct_queryset[offset : offset + page_size]
 
         serializer = ProductListSerializer(
             products,
@@ -496,6 +497,7 @@ class ProductListCreateView(APIView):
             403: ErrorEnvelopeSerializer,
         },
     )
+    @integrity_conflict("A product with this slug already exists.")
     def post(self, request: Request) -> Response:
         serializer = ProductWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -520,7 +522,7 @@ class ProductDetailView(APIView):
                 "store_associations__store",
             ).get(pk=pk)
         except Product.DoesNotExist:
-            raise Http404
+            raise Http404 from None
 
     @extend_schema(
         tags=["Products"],
@@ -551,6 +553,7 @@ class ProductDetailView(APIView):
             404: ErrorEnvelopeSerializer,
         },
     )
+    @integrity_conflict("A product with this slug already exists.")
     def patch(self, request: Request, pk: int) -> Response:
         product = self.get_object(pk)
         serializer = ProductWriteSerializer(product, data=request.data, partial=True)
@@ -586,7 +589,7 @@ class ProductAttributeListCreateView(APIView):
         try:
             return Product.objects.get(pk=product_id)
         except Product.DoesNotExist:
-            raise Http404
+            raise Http404 from None
 
     @extend_schema(
         tags=["Product Attributes"],
@@ -618,9 +621,12 @@ class ProductAttributeListCreateView(APIView):
             404: ErrorEnvelopeSerializer,
         },
     )
+    @integrity_conflict("An attribute with this name already exists for this product.")
     def post(self, request: Request, product_id: int) -> Response:
         product = self.get_product(product_id)
-        serializer = ProductAttributeWriteSerializer(data=request.data, context={"product": product})
+        serializer = ProductAttributeWriteSerializer(
+            data=request.data, context={"product": product}
+        )
         serializer.is_valid(raise_exception=True)
         attribute = serializer.save(product=product)
         return Response(
@@ -639,13 +645,13 @@ class ProductAttributeDetailView(APIView):
         try:
             return Product.objects.get(pk=product_id)
         except Product.DoesNotExist:
-            raise Http404
+            raise Http404 from None
 
     def get_attribute(self, product: Product, attr_id: int) -> ProductAttribute:
         try:
             return product.attributes.get(pk=attr_id)
         except ProductAttribute.DoesNotExist:
-            raise Http404
+            raise Http404 from None
 
     @extend_schema(
         tags=["Product Attributes"],
@@ -677,6 +683,7 @@ class ProductAttributeDetailView(APIView):
             404: ErrorEnvelopeSerializer,
         },
     )
+    @integrity_conflict("An attribute with this name already exists for this product.")
     def patch(self, request: Request, product_id: int, attr_id: int) -> Response:
         product = self.get_product(product_id)
         attribute = self.get_attribute(product, attr_id)
@@ -714,7 +721,7 @@ class ProductImageListCreateView(APIView):
         try:
             return Product.objects.get(pk=product_id)
         except Product.DoesNotExist:
-            raise Http404
+            raise Http404 from None
 
     @extend_schema(
         tags=["Product Images"],
@@ -768,13 +775,13 @@ class ProductImageDetailView(APIView):
         try:
             return Product.objects.get(pk=product_id)
         except Product.DoesNotExist:
-            raise Http404
+            raise Http404 from None
 
     def get_image(self, product: Product, image_id: int) -> ProductImage:
         try:
             return product.images.get(pk=image_id)
         except ProductImage.DoesNotExist:
-            raise Http404
+            raise Http404 from None
 
     @extend_schema(
         tags=["Product Images"],
@@ -842,7 +849,7 @@ class ProductStoreListCreateView(APIView):
         try:
             return Product.objects.get(pk=product_id)
         except Product.DoesNotExist:
-            raise Http404
+            raise Http404 from None
 
     @extend_schema(
         tags=["Product Stores"],
@@ -879,6 +886,7 @@ class ProductStoreListCreateView(APIView):
             409: ErrorEnvelopeSerializer,
         },
     )
+    @integrity_conflict("This product is already associated with the selected store.")
     def post(self, request: Request, product_id: int) -> Response:
         product = self.get_product(product_id)
         serializer = ProductStoreWriteSerializer(data=request.data)
@@ -886,8 +894,10 @@ class ProductStoreListCreateView(APIView):
 
         store = serializer.validated_data["store"]
         if product.store_associations.filter(store=store).exists():
-            return Response(
-                {"error": {"code": "CONFLICT", "message": "This product is already associated with the selected store."}},
+            return api_error_response(
+                request._request,
+                code="CONFLICT",
+                message="This product is already associated with the selected store.",
                 status=status.HTTP_409_CONFLICT,
             )
 
@@ -910,13 +920,13 @@ class ProductStoreDetailView(APIView):
         try:
             return Product.objects.get(pk=product_id)
         except Product.DoesNotExist:
-            raise Http404
+            raise Http404 from None
 
     def get_association(self, product: Product, assoc_id: int) -> ProductStore:
         try:
             return product.store_associations.get(pk=assoc_id)
         except ProductStore.DoesNotExist:
-            raise Http404
+            raise Http404 from None
 
     @extend_schema(
         tags=["Product Stores"],
@@ -951,6 +961,7 @@ class ProductStoreDetailView(APIView):
             404: ErrorEnvelopeSerializer,
         },
     )
+    @integrity_conflict("This product is already associated with the selected store.")
     def patch(self, request: Request, product_id: int, assoc_id: int) -> Response:
         product = self.get_product(product_id)
         association = self.get_association(product, assoc_id)
@@ -958,9 +969,14 @@ class ProductStoreDetailView(APIView):
         serializer.is_valid(raise_exception=True)
 
         # Check if store is being changed (not allowed)
-        if "store" in serializer.validated_data and serializer.validated_data["store"] != association.store:
-            return Response(
-                {"error": {"code": "VALIDATION_ERROR", "message": "Cannot change store of an existing association."}},
+        if (
+            "store" in serializer.validated_data
+            and serializer.validated_data["store"] != association.store
+        ):
+            return api_error_response(
+                request._request,
+                code="VALIDATION_ERROR",
+                message="Cannot change store of an existing association.",
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

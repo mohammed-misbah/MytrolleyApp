@@ -47,8 +47,11 @@ class TestCategoryModel:
         assert category.slug == "grocery-food"
 
     def test_category_slug_uniqueness(self) -> None:
+        # Distinct names that slugify identically verify slug disambiguation;
+        # case-only variants are now rejected by the case-insensitive name
+        # constraint (covered in test_database_constraints.py).
         Category.objects.create(name="Electronics")
-        category2 = Category.objects.create(name="electronics")
+        category2 = Category.objects.create(name="Electronics!")
         assert category2.slug == "electronics-1"
 
     def test_category_parent_relationship(self) -> None:

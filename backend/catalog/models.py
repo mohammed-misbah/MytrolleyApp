@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import uuid
 from decimal import Decimal
+from typing import Any
 
-from django.conf import settings
 from django.db import models
-from django.utils import timezone
+from django.db.models.functions import Lower
 from django.utils.text import slugify
 
 
@@ -32,6 +32,9 @@ class Category(models.Model):
     class Meta:
         ordering = ["name"]
         verbose_name_plural = "Categories"
+        constraints = [
+            models.UniqueConstraint(Lower("name"), name="category_name_ci_unique"),
+        ]
         indexes = [
             models.Index(fields=["is_active"], name="category_active_idx"),
             models.Index(fields=["parent", "is_active"], name="category_parent_idx"),
@@ -40,7 +43,7 @@ class Category(models.Model):
     def __str__(self) -> str:
         return self.name
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         if not self.slug:
             base_slug = slugify(self.name)
             self.slug = base_slug
@@ -71,15 +74,17 @@ class Store(models.Model):
 
     class Meta:
         ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(Lower("code"), name="store_code_ci_unique"),
+        ]
         indexes = [
             models.Index(fields=["is_active"], name="store_active_idx"),
-            models.Index(fields=["code"], name="store_code_idx"),
         ]
 
     def __str__(self) -> str:
         return self.name
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         if self.code:
             self.code = self.code.upper()
         super().save(*args, **kwargs)
@@ -106,13 +111,12 @@ class Product(models.Model):
         indexes = [
             models.Index(fields=["is_active"], name="product_active_idx"),
             models.Index(fields=["category", "is_active"], name="product_category_idx"),
-            models.Index(fields=["slug"], name="product_slug_idx"),
         ]
 
     def __str__(self) -> str:
         return self.name
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         if not self.slug:
             base_slug = slugify(self.name)
             self.slug = base_slug
@@ -144,16 +148,16 @@ class ProductAttribute(models.Model):
                 fields=["product", "name"],
                 name="unique_product_attribute_name",
             ),
-        ]
-        indexes = [
-            models.Index(fields=["product", "name"], name="product_attr_name_idx"),
+            models.UniqueConstraint(
+                "product", Lower("name"), name="product_attribute_name_ci_unique"
+            ),
         ]
 
     def __str__(self) -> str:
         return f"{self.product.name} - {self.name}: {self.value}"
 
 
-def product_image_upload_path(instance: "ProductImage", filename: str) -> str:
+def product_image_upload_path(instance: ProductImage, filename: str) -> str:
     """Generate upload path for product images."""
     ext = filename.split(".")[-1].lower()
     return f"products/{instance.product_id}/images/{uuid.uuid4()}.{ext}"
@@ -184,7 +188,7 @@ class ProductImage(models.Model):
     def __str__(self) -> str:
         return f"Image for {self.product.name} ({'primary' if self.is_primary else 'secondary'})"
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         # Ensure only one primary image per product
         if self.is_primary:
             ProductImage.objects.filter(product=self.product, is_primary=True).exclude(
@@ -234,8 +238,13 @@ class ProductStore(models.Model):
     def __str__(self) -> str:
         return f"{self.product.name} @ {self.store.name} - {self.price}"
 
-    def clean(self):
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def clean(self) -> None:
         from django.core.exceptions import ValidationError
+
         if self.price is not None and self.price < 0:
             raise ValidationError({"price": "Price must be greater than or equal to zero."})
         if self.quantity is not None and self.quantity < 0:
@@ -243,7 +252,3 @@ class ProductStore(models.Model):
         # Round price to 2 decimal places for storage
         if self.price is not None:
             self.price = self.price.quantize(Decimal("0.01"))
-
-    def save(self, *args, **kwargs):
-        self.full_clean()
-        super().save(*args, **kwargs)

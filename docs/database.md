@@ -22,6 +22,7 @@ erDiagram
         boolean is_active
         timestamp created_at
         timestamp updated_at
+        %% unique lower(name)
     }
 
     STORE {
@@ -33,6 +34,7 @@ erDiagram
         boolean is_active
         timestamp created_at
         timestamp updated_at
+        %% unique lower(code)
     }
 
     PRODUCT {
@@ -53,7 +55,7 @@ erDiagram
         text value
         timestamp created_at
         timestamp updated_at
-        %% unique (product_id, name)
+        %% unique (product_id, name) and (product_id, lower(name))
     }
 
     PRODUCT_IMAGE {
@@ -61,7 +63,7 @@ erDiagram
         bigint product_id FK
         image image
         varchar(200) alt_text
-        int display_order
+        int display_order CHECK (display_order >= 0)
         boolean is_primary
         timestamp created_at
         timestamp updated_at
@@ -95,10 +97,14 @@ erDiagram
 | created_at | timestamptz | NOT NULL |
 | updated_at | timestamptz | NOT NULL |
 
+**Constraints:**
+- `catalog_category_name_key` — UNIQUE (name)
+- `category_name_ci_unique` — UNIQUE (lower(name)) — case-insensitive protection at database level
+
 **Indexes:**
 - `category_active_idx` (is_active)
 - `category_parent_idx` (parent_id, is_active)
-- Unique indexes on name, slug (auto-created by UNIQUE constraints)
+- Unique indexes on name, slug and lower(name) (auto-created by constraints)
 
 **Hierarchical categories:** Self-referential FK with `on_delete=PROTECT` prevents deletion of a category that has children.
 
@@ -117,10 +123,13 @@ erDiagram
 | created_at | timestamptz | NOT NULL |
 | updated_at | timestamptz | NOT NULL |
 
+**Constraints:**
+- `catalog_store_code_key` — UNIQUE (code)
+- `store_code_ci_unique` — UNIQUE (lower(code)) — also protects raw SQL writes that bypass `Store.save()` uppercasing
+
 **Indexes:**
 - `store_active_idx` (is_active)
-- `store_code_idx` (code)
-- Unique index on code
+- Unique indexes on code and lower(code) (auto-created by constraints)
 
 ---
 
@@ -140,8 +149,7 @@ erDiagram
 **Indexes:**
 - `product_active_idx` (is_active)
 - `product_category_idx` (category_id, is_active)
-- `product_slug_idx` (slug)
-- Unique index on slug
+- Unique index on slug (the redundant `product_slug_idx` was removed in migration 0004)
 
 **Category protection:** `on_delete=PROTECT` prevents deleting a category that has products.
 
@@ -160,9 +168,10 @@ erDiagram
 
 **Constraints:**
 - `unique_product_attribute_name` — UNIQUE (product_id, name)
+- `product_attribute_name_ci_unique` — UNIQUE (product_id, lower(name)) — case-insensitive protection at database level
 
 **Indexes:**
-- `product_attr_name_idx` (product_id, name)
+- Unique indexes on (product_id, name) and (product_id, lower(name)); the redundant `product_attr_name_idx` was removed in migration 0004
 
 ---
 
@@ -174,10 +183,13 @@ erDiagram
 | product_id | bigint | FK → catalog_product(id), CASCADE |
 | image | image | NOT NULL |
 | alt_text | varchar(200) | |
-| display_order | integer | DEFAULT 0 |
+| display_order | integer | NOT NULL, DEFAULT 0, CHECK (display_order >= 0) |
 | is_primary | boolean | DEFAULT false |
 | created_at | timestamptz | NOT NULL |
 | updated_at | timestamptz | NOT NULL |
+
+**Constraints:**
+- `catalog_productimage_display_order_check` — CHECK (display_order >= 0) — created by `PositiveIntegerField`
 
 **Indexes:**
 - `product_img_primary_idx` (product_id, is_primary)
@@ -247,8 +259,19 @@ erDiagram
 | 0001_initial | Creates all six tables with PKs, FKs, unique constraints, indexes |
 | 0002_alter_productstore_price | Changes price from decimal_places=2 to decimal_places=4 |
 | 0003_add_price_check_constraint | Adds CHECK constraint `price >= 0` (database-level) |
+| 0004_case_insensitive_uniqueness_and_index_cleanup | Adds case-insensitive UNIQUE constraints for category names, store codes and per-product attribute names; removes redundant `product_slug_idx`, `store_code_idx` and `product_attr_name_idx` |
 
 All migrations are applied and verified on PostgreSQL.
+
+### Django `on_delete` vs PostgreSQL `ON DELETE`
+
+`on_delete=PROTECT` / `CASCADE` are Django ORM rules: they determine what the
+ORM does when a Python model instance is deleted. PostgreSQL enforces the FK
+with `ON DELETE NO ACTION` (DEFERRABLE INITIALLY DEFERRED), so direct SQL that
+deletes a parent with children is rejected by the database rather than cascaded.
+The API additionally checks associations before deleting a store and returns
+`409 CONFLICT` when products are attached; this application-level protection is
+preserved and was not changed by migration 0004.
 
 ---
 
