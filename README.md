@@ -1,16 +1,97 @@
-# MyTrolley — Milestone 1 Backend Foundation
+# MyTrolley — Django backend, React dashboard and native Android catalogue
 
-Secure, documented and tested backend foundation for the MyTrolley technical
-assessment. Milestone 1 delivers Django REST Framework authentication,
-role-based authorization, operational health endpoints and the engineering
-baseline for later product work. It deliberately does **not** implement React,
-Swift, product CRUD, image uploads or deployment.
+The repository now contains the full product-discovery stack:
+
+- **Backend:** Django 5.2 / DRF / PostgreSQL with authenticated administrative
+  catalogue APIs and a separate anonymous, read-only public catalogue.
+- **React dashboard:** `frontend/` manages categories, stores, products,
+  attributes, images, store-specific pricing and soft deletion using the
+  authenticated APIs.
+- **Native Android:** `C:\Users\user\AndroidStudioProjects\MyTrolley` (outside
+  this repository) browses the public catalogue with no customer login.
+
+The original Milestone 1 foundation (JWT auth, roles, health, error envelope)
+remains in place and unchanged.
 
 - **Stack:** Python 3.14, Django 5.2 LTS, Django REST Framework, PostgreSQL 14+
 - **Location:** `C:\Users\user\OneDrive\Documents\MyTrolleyApp\`
 - **Runtime settings:** `config.settings.development` (default) and `config.settings.production`
 - **Test settings:** `config.settings.test`
 - **API docs:** OpenAPI schema and Swagger UI (`/api/v1/schema/`, `/api/v1/docs/`); staff-only in production, anonymously reachable by default in development
+
+## Public catalogue (anonymous, read-only)
+
+These endpoints require **no** login and accept only `GET`, `HEAD` and `OPTIONS`:
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/public/stores/` | Active stores with public product counts |
+| `GET /api/v1/public/categories/` | Active, publicly visible categories |
+| `GET /api/v1/public/products/` | Paginated, searchable/filterable public product list |
+| `GET /api/v1/public/products/{id}/` | Public product detail with attributes, images and store offers |
+| `GET /api/v1/public/images/{id}/` | Visibility-checked image bytes (request-aware absolute URLs) |
+
+Query parameters for the product list: `search`, `category`, `store`, `page`,
+`page_size` (max 100), `ordering` (`price` requires `store`), `min_price` and
+`max_price` (require `store`). `is_active`, `is_available` and `deleted_at`
+are rejected with `400 VALIDATION_ERROR`; they cannot relax visibility.
+
+A product is public only when it is active, not soft-deleted, its category and
+all ancestors are active, and it has at least one available association with
+an active store. Prices and quantities always come from the selected
+product-store association; there is no global price.
+
+Administrative endpoints under `/api/v1/stores/`, `/api/v1/categories/` and
+`/api/v1/products/` still require a Bearer access token plus the
+`accounts.manage_catalog` permission.
+
+### Running the stack locally
+
+```powershell
+# Backend (bind to all interfaces so the Android emulator can reach it)
+cd C:\Users\user\OneDrive\Documents\MyTrolleyApp\backend
+.\.venv\Scripts\python.exe manage.py runserver 0.0.0.0:8000 --noreload
+
+# React dashboard
+cd ..\frontend
+npm run dev
+
+# Android (JDK 25 is bundled with Android Studio)
+cd C:\Users\user\AndroidStudioProjects\MyTrolley
+$env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
+.\gradlew.bat :app:assembleDebug
+```
+
+The Android debug build defaults to `http://10.0.2.2:8000/api/v1/`, the
+standard emulator-to-host alias. If the emulator routes app traffic through a
+different interface, override it at build time, for example
+`-PmytrolleyApiUrl=http://192.168.1.147:8000/api/v1/`, and include that host
+in `DJANGO_ALLOWED_HOSTS` in `backend/.env`. Cleartext HTTP is permitted only
+for these development hosts in the debug build; release builds do not enable
+unrestricted cleartext.
+
+### Verification commands
+
+```powershell
+cd C:\Users\user\OneDrive\Documents\MyTrolleyApp\backend
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m pytest -q tests/test_public_catalogue.py
+.\.venv\Scripts\python.exe manage.py check
+.\.venv\Scripts\python.exe manage.py spectacular --validate
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m mypy .
+
+cd ..\frontend
+npm run typecheck
+npm run build
+
+cd C:\Users\user\AndroidStudioProjects\MyTrolley
+$env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
+.\gradlew.bat :app:testDebugUnitTest
+```
+
+Health endpoints are `/api/v1/health/live/` and `/api/v1/health/ready/`.
+Requests to `/health` are not part of this application.
 
 ## Repository layout
 
@@ -26,14 +107,14 @@ MyTrolleyApp/
 │   ├── manage.py
 │   └── pyproject.toml          Ruff, mypy, pytest and coverage configuration
 ├── docs/
-│   ├── api.md                  endpoint contracts, JWT and CSRF flow
+│   ├── api.md                  endpoint contracts, JWT/CSRF and public catalogue
 │   ├── architecture.md         components, ERD, trust boundaries, future design
 │   ├── frontend-integration.md browser token storage and refresh serialization
 │   ├── jwt_migration_plan.md   JWT migration decisions and rollback
 │   ├── requirements-traceability.md
 │   ├── security.md             threat model and controls
 │   └── verification.md         commands, results and known limitations
-├── frontend/                   reserved; intentionally empty in milestone 1
+├── frontend/                   React/Vite admin dashboard (npm run dev / build)
 ├── .github/workflows/ci.yml
 ├── .gitignore
 └── README.md

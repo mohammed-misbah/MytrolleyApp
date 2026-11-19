@@ -55,7 +55,7 @@ def integrity_conflict(message: str) -> Callable[[_F], _F]:
         def wrapper(self: Any, request: Request, *args: Any, **kwargs: Any) -> Response:
             try:
                 return view(self, request, *args, **kwargs)
-            except (IntegrityError, DjangoValidationError):
+            except IntegrityError, DjangoValidationError:
                 _logger.warning(
                     "catalog.integrity_conflict",
                     extra={"event": "catalog.integrity_conflict"},
@@ -523,11 +523,15 @@ class ProductDetailView(APIView):
 
     def get_object(self, pk: int) -> Product:
         try:
-            return Product.objects.select_related("category").prefetch_related(
-                "attributes",
-                "images",
-                "store_associations__store",
-            ).get(pk=pk)
+            return (
+                Product.objects.select_related("category")
+                .prefetch_related(
+                    "attributes",
+                    "images",
+                    "store_associations__store",
+                )
+                .get(pk=pk)
+            )
         except Product.DoesNotExist:
             raise Http404 from None
 

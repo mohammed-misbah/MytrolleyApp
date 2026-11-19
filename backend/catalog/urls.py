@@ -4,6 +4,13 @@ from __future__ import annotations
 
 from django.urls import path
 
+from catalog.public_views import (
+    PublicCategoryListView,
+    PublicImageView,
+    PublicProductDetailView,
+    PublicProductListView,
+    PublicStoreListView,
+)
 from catalog.views import (
     CategoryDetailView,
     CategoryListCreateView,
@@ -22,6 +29,16 @@ from catalog.views import (
 app_name = "catalog"
 
 urlpatterns = [
+    # Anonymous, read-only customer catalogue (no JWT, no admin permissions)
+    path("public/stores/", PublicStoreListView.as_view(), name="public-store-list"),
+    path("public/categories/", PublicCategoryListView.as_view(), name="public-category-list"),
+    path("public/products/", PublicProductListView.as_view(), name="public-product-list"),
+    path(
+        "public/products/<int:pk>/",
+        PublicProductDetailView.as_view(),
+        name="public-product-detail",
+    ),
+    path("public/images/<int:image_id>/", PublicImageView.as_view(), name="public-image"),
     # Categories
     path("categories/", CategoryListCreateView.as_view(), name="category-list"),
     path("categories/<int:pk>/", CategoryDetailView.as_view(), name="category-detail"),

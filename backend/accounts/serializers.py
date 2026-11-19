@@ -100,6 +100,3 @@ class LogoutResponseSerializer(serializers.Serializer):
     """Body returned after every session for the caller has been revoked."""
 
     message = serializers.CharField(read_only=True)
-
-
-

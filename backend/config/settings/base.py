@@ -160,6 +160,11 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+# Uploaded catalogue images live under BASE_DIR (e.g. products/<id>/images/...).
+# An explicit root keeps ImageField.path absolute regardless of the working
+# directory used to start the server. No public URL prefix is exposed here;
+# images are served only through the visibility-checked public image endpoint.
+MEDIA_ROOT = BASE_DIR
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ---------------------------------------------------------------------------

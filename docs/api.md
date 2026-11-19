@@ -296,6 +296,44 @@ path is configurable and production rejects the default `admin/` path.
 
 ## Catalogue endpoints
 
+### Public, anonymous catalogue (`/api/v1/public/`)
+
+These endpoints are **read-only** and require no credentials. Only `GET`,
+`HEAD` and `OPTIONS` are allowed; any write method returns `405
+METHOD_NOT_ALLOWED`. They are implemented in `catalog/public_views.py` with
+customer-safe serializers in `catalog/public_serializers.py`.
+
+| Endpoint | Response |
+|---|---|
+| `GET /api/v1/public/stores/` | JSON array of active stores with `product_count` |
+| `GET /api/v1/public/categories/` | JSON array of visible categories with nested children and `product_count` |
+| `GET /api/v1/public/products/` | `{count, page, page_size, total_pages, results}` |
+| `GET /api/v1/public/products/{id}/` | Product detail with `attributes`, `images`, `stores` and `selected_store` |
+| `GET /api/v1/public/images/{id}/` | Image bytes for a visually eligible product only |
+
+Product list query parameters: `search`, `category`, `store`, `page`,
+`page_size` (1–100), `ordering` (`name`, `-name`, `created_at`, `-created_at`,
+`price`, `-price`; price requires `store`), `min_price`, `max_price` (require
+`store`). `is_active`, `is_available`, `deleted_at` and `is_primary` are
+rejected with `400 VALIDATION_ERROR`. An inactive or unknown selected store
+returns `400`.
+
+Visibility is mandatory and cannot be disabled by a query parameter: the
+product must be active, not soft-deleted, in a category whose entire ancestry
+is active, and available through at least one active store association.
+Unavailable associations and inactive stores are excluded from nested data.
+Without a selected store, `starting_price` is the lowest eligible
+store-specific price — there is no global product price. With a selected
+store, `selected_store_price` / `selected_store` are that association's actual
+price and quantity. Detail requests older than a deleted or hidden product
+return `404 NOT_FOUND`.
+
+Image URLs are absolute, request-aware URLs through
+`/api/v1/public/images/{id}/`, so a request from `10.0.2.2:8000` yields a URL
+the Android Emulator can load. No arbitrary file path is accepted.
+
+### Administrative catalogue (authenticated)
+
 All `/api/v1/products/...` routes require a Bearer access token and the
 `accounts.manage_catalog` permission (Administrator and DataEntry). The same
 endpoints are the active catalogue source for admin and client integrations;

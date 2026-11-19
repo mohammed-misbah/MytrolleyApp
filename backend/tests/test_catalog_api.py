@@ -6,10 +6,10 @@ from decimal import Decimal
 
 import pytest
 from django.test import Client
-from rest_framework_simplejwt.tokens import RefreshToken
 
+from accounts.models import User
 from catalog.models import Category, Product, ProductAttribute, ProductImage, ProductStore, Store
-from tests.conftest import access_token, auth_header, login, make_user, post_json, patch_json
+from tests.conftest import access_token, auth_header, login, make_user, patch_json, post_json
 
 
 @pytest.fixture
@@ -46,7 +46,9 @@ def product(db, category) -> Product:
 
 @pytest.fixture
 def product_store(db, product, store) -> ProductStore:
-    return ProductStore.objects.create(product=product, store=store, price=Decimal("15.00"), quantity=100)
+    return ProductStore.objects.create(
+        product=product, store=store, price=Decimal("15.00"), quantity=100
+    )
 
 
 class TestCategoryAPI:
@@ -63,7 +65,9 @@ class TestCategoryAPI:
         Category.objects.create(name="Active Cat", is_active=True)
         Category.objects.create(name="Inactive Cat", is_active=False)
 
-        response = client.get("/api/v1/categories/?is_active=true", **auth_header(administrator_token))
+        response = client.get(
+            "/api/v1/categories/?is_active=true", **auth_header(administrator_token)
+        )
         assert response.status_code == 200
         assert len(response.json()) == 1
         assert response.json()[0]["name"] == "Active Cat"
@@ -90,7 +94,9 @@ class TestCategoryAPI:
         assert response.json()["error"]["code"] == "VALIDATION_ERROR"
 
     def test_retrieve_category(self, client: Client, administrator_token, category) -> None:
-        response = client.get(f"/api/v1/categories/{category.id}/", **auth_header(administrator_token))
+        response = client.get(
+            f"/api/v1/categories/{category.id}/", **auth_header(administrator_token)
+        )
         assert response.status_code == 200
         assert response.json()["name"] == "Electronics"
 
@@ -105,11 +111,17 @@ class TestCategoryAPI:
         assert response.json()["name"] == "Updated Electronics"
 
     def test_delete_category(self, client: Client, administrator_token, category) -> None:
-        response = client.delete(f"/api/v1/categories/{category.id}/", **auth_header(administrator_token))
+        response = client.delete(
+            f"/api/v1/categories/{category.id}/", **auth_header(administrator_token)
+        )
         assert response.status_code == 204
 
-    def test_delete_category_with_products_fails(self, client: Client, administrator_token, category, product) -> None:
-        response = client.delete(f"/api/v1/categories/{category.id}/", **auth_header(administrator_token))
+    def test_delete_category_with_products_fails(
+        self, client: Client, administrator_token, category, product
+    ) -> None:
+        response = client.delete(
+            f"/api/v1/categories/{category.id}/", **auth_header(administrator_token)
+        )
         assert response.status_code == 409
 
     def test_unauthorized_access(self, client: Client) -> None:
@@ -162,7 +174,9 @@ class TestStoreAPI:
         response = client.delete(f"/api/v1/stores/{store.id}/", **auth_header(administrator_token))
         assert response.status_code == 204
 
-    def test_delete_store_with_products_fails(self, client: Client, administrator_token, store, product_store) -> None:
+    def test_delete_store_with_products_fails(
+        self, client: Client, administrator_token, store, product_store
+    ) -> None:
         response = client.delete(f"/api/v1/stores/{store.id}/", **auth_header(administrator_token))
         assert response.status_code == 409
 
@@ -177,11 +191,15 @@ class TestProductAPI:
         assert data["count"] == 1
         assert data["results"][0]["name"] == "Laptop"
 
-    def test_list_products_pagination(self, client: Client, administrator_token, category, product) -> None:
+    def test_list_products_pagination(
+        self, client: Client, administrator_token, category, product
+    ) -> None:
         for i in range(25):
             Product.objects.create(name=f"Product {i}", category=category)
 
-        response = client.get("/api/v1/products/?page=1&page_size=10", **auth_header(administrator_token))
+        response = client.get(
+            "/api/v1/products/?page=1&page_size=10", **auth_header(administrator_token)
+        )
         assert response.status_code == 200
         data = response.json()
         assert len(data["results"]) == 10
@@ -202,24 +220,36 @@ class TestProductAPI:
         Product.objects.create(name="Mouse", category=cat2)
         Product.objects.create(name="Laptop", category=category)
 
-        response = client.get(f"/api/v1/products/?category={category.id}", **auth_header(administrator_token))
+        response = client.get(
+            f"/api/v1/products/?category={category.id}", **auth_header(administrator_token)
+        )
         assert response.status_code == 200
         data = response.json()
         assert len(data["results"]) == 1
         assert data["results"][0]["name"] == "Laptop"
 
-    def test_filter_by_store(self, client: Client, administrator_token, product, store, product_store) -> None:
+    def test_filter_by_store(
+        self, client: Client, administrator_token, product, store, product_store
+    ) -> None:
         store2 = Store.objects.create(name="Store B", code="STB")
-        ProductStore.objects.create(product=product, store=store2, price=Decimal("20.00"), quantity=50)
+        ProductStore.objects.create(
+            product=product, store=store2, price=Decimal("20.00"), quantity=50
+        )
 
-        response = client.get(f"/api/v1/products/?store={store.id}", **auth_header(administrator_token))
+        response = client.get(
+            f"/api/v1/products/?store={store.id}", **auth_header(administrator_token)
+        )
         assert response.status_code == 200
         data = response.json()
         assert len(data["results"]) == 1
 
-    def test_filter_by_price_range(self, client: Client, administrator_token, product, store, product_store) -> None:
+    def test_filter_by_price_range(
+        self, client: Client, administrator_token, product, store, product_store
+    ) -> None:
         store2 = Store.objects.create(name="Store B", code="STB")
-        ProductStore.objects.create(product=product, store=store2, price=Decimal("25.00"), quantity=50)
+        ProductStore.objects.create(
+            product=product, store=store2, price=Decimal("25.00"), quantity=50
+        )
 
         response = client.get(
             f"/api/v1/products/?store={store.id}&min_price=10&max_price=20",
@@ -239,17 +269,27 @@ class TestProductAPI:
         assert data["results"][0]["name"] == "A Product"
         assert data["results"][-1]["name"] == "Z Product"
 
-    def test_sort_products_by_price(self, client: Client, administrator_token, category, store) -> None:
+    def test_sort_products_by_price(
+        self, client: Client, administrator_token, category, store
+    ) -> None:
         product1 = Product.objects.create(name="Product A", category=category)
         product2 = Product.objects.create(name="Product B", category=category)
-        ProductStore.objects.create(product=product1, store=store, price=Decimal("15.00"), quantity=100)
-        ProductStore.objects.create(product=product2, store=store, price=Decimal("10.00"), quantity=50)
+        ProductStore.objects.create(
+            product=product1, store=store, price=Decimal("15.00"), quantity=100
+        )
+        ProductStore.objects.create(
+            product=product2, store=store, price=Decimal("10.00"), quantity=50
+        )
 
-        response = client.get(f"/api/v1/products/?store={store.id}&ordering=price", **auth_header(administrator_token))
+        response = client.get(
+            f"/api/v1/products/?store={store.id}&ordering=price", **auth_header(administrator_token)
+        )
         assert response.status_code == 200
         data = response.json()
         # Should have the cheaper price first
-        assert data["results"][0]["store_price"]["price"] < data["results"][-1]["store_price"]["price"]
+        assert (
+            data["results"][0]["store_price"]["price"] < data["results"][-1]["store_price"]["price"]
+        )
 
     def test_create_product(self, client: Client, administrator_token, category) -> None:
         response = post_json(
@@ -301,7 +341,9 @@ class TestProductAttributeAPI:
         ProductAttribute.objects.create(product=product, name="Brand", value="Dell")
         ProductAttribute.objects.create(product=product, name="RAM", value="16GB")
 
-        response = client.get(f"/api/v1/products/{product.id}/attributes/", **auth_header(administrator_token))
+        response = client.get(
+            f"/api/v1/products/{product.id}/attributes/", **auth_header(administrator_token)
+        )
         assert response.status_code == 200
         assert len(response.json()) == 2
 
@@ -315,7 +357,9 @@ class TestProductAttributeAPI:
         assert response.status_code == 201
         assert response.json()["name"] == "Brand"
 
-    def test_create_duplicate_attribute_fails(self, client: Client, administrator_token, product) -> None:
+    def test_create_duplicate_attribute_fails(
+        self, client: Client, administrator_token, product
+    ) -> None:
         ProductAttribute.objects.create(product=product, name="Brand", value="Dell")
         response = post_json(
             client,
@@ -338,7 +382,10 @@ class TestProductAttributeAPI:
 
     def test_delete_attribute(self, client: Client, administrator_token, product) -> None:
         attr = ProductAttribute.objects.create(product=product, name="Brand", value="Dell")
-        response = client.delete(f"/api/v1/products/{product.id}/attributes/{attr.id}/", **auth_header(administrator_token))
+        response = client.delete(
+            f"/api/v1/products/{product.id}/attributes/{attr.id}/",
+            **auth_header(administrator_token),
+        )
         assert response.status_code == 204
 
 
@@ -346,22 +393,25 @@ class TestProductImageAPI:
     """Product Image API tests."""
 
     def create_test_image(self) -> bytes:
-        from PIL import Image
         from io import BytesIO
+
+        from PIL import Image
+
         img = Image.new("RGB", (100, 100), color="red")
         buffer = BytesIO()
         img.save(buffer, format="JPEG")
         return buffer.getvalue()
 
     def test_list_images(self, client: Client, administrator_token, product) -> None:
-        image_data = self.create_test_image()
         ProductImage.objects.create(
             product=product,
             image="test.jpg",
             is_primary=True,
         )
 
-        response = client.get(f"/api/v1/products/{product.id}/images/", **auth_header(administrator_token))
+        response = client.get(
+            f"/api/v1/products/{product.id}/images/", **auth_header(administrator_token)
+        )
         assert response.status_code == 200
 
     def test_upload_image(self, client: Client, administrator_token, product) -> None:
@@ -390,8 +440,12 @@ class TestProductImageAPI:
 class TestProductStoreAPI:
     """Product-Store Association API tests."""
 
-    def test_list_associations(self, client: Client, administrator_token, product, product_store) -> None:
-        response = client.get(f"/api/v1/products/{product.id}/stores/", **auth_header(administrator_token))
+    def test_list_associations(
+        self, client: Client, administrator_token, product, product_store
+    ) -> None:
+        response = client.get(
+            f"/api/v1/products/{product.id}/stores/", **auth_header(administrator_token)
+        )
         assert response.status_code == 200
         assert len(response.json()) == 1
         # Price is stored with 4 decimal places
@@ -409,7 +463,9 @@ class TestProductStoreAPI:
         assert response.json()["price"] == "15.0000"
         assert response.json()["quantity"] == 100
 
-    def test_create_duplicate_association_fails(self, client: Client, administrator_token, product, product_store) -> None:
+    def test_create_duplicate_association_fails(
+        self, client: Client, administrator_token, product, product_store
+    ) -> None:
         response = post_json(
             client,
             f"/api/v1/products/{product.id}/stores/",
@@ -418,7 +474,9 @@ class TestProductStoreAPI:
         )
         assert response.status_code == 409
 
-    def test_update_association_price(self, client: Client, administrator_token, product, product_store) -> None:
+    def test_update_association_price(
+        self, client: Client, administrator_token, product, product_store
+    ) -> None:
         response = patch_json(
             client,
             f"/api/v1/products/{product.id}/stores/{product_store.id}/",
@@ -429,7 +487,9 @@ class TestProductStoreAPI:
         # Price is stored with 4 decimal places
         assert response.json()["price"] == "20.0000"
 
-    def test_update_association_quantity(self, client: Client, administrator_token, product, product_store) -> None:
+    def test_update_association_quantity(
+        self, client: Client, administrator_token, product, product_store
+    ) -> None:
         response = patch_json(
             client,
             f"/api/v1/products/{product.id}/stores/{product_store.id}/",
@@ -439,7 +499,9 @@ class TestProductStoreAPI:
         assert response.status_code == 200
         assert response.json()["quantity"] == 200
 
-    def test_update_store_not_allowed(self, client: Client, administrator_token, product, product_store, store) -> None:
+    def test_update_store_not_allowed(
+        self, client: Client, administrator_token, product, product_store, store
+    ) -> None:
         store2 = Store.objects.create(name="Store B", code="STB")
         response = patch_json(
             client,
@@ -449,14 +511,18 @@ class TestProductStoreAPI:
         )
         assert response.status_code == 400
 
-    def test_delete_association(self, client: Client, administrator_token, product, product_store) -> None:
+    def test_delete_association(
+        self, client: Client, administrator_token, product, product_store
+    ) -> None:
         response = client.delete(
             f"/api/v1/products/{product.id}/stores/{product_store.id}/",
             **auth_header(administrator_token),
         )
         assert response.status_code == 204
 
-    def test_negative_price_rejected(self, client: Client, administrator_token, product, store) -> None:
+    def test_negative_price_rejected(
+        self, client: Client, administrator_token, product, store
+    ) -> None:
         response = post_json(
             client,
             f"/api/v1/products/{product.id}/stores/",
@@ -465,7 +531,9 @@ class TestProductStoreAPI:
         )
         assert response.status_code == 400
 
-    def test_negative_quantity_rejected(self, client: Client, administrator_token, product, store) -> None:
+    def test_negative_quantity_rejected(
+        self, client: Client, administrator_token, product, store
+    ) -> None:
         response = post_json(
             client,
             f"/api/v1/products/{product.id}/stores/",

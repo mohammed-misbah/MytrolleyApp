@@ -5,8 +5,10 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pytest
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError
+from django.db.models import ProtectedError
 from PIL import Image
 
 from catalog.models import Category, Product, ProductAttribute, ProductImage, ProductStore, Store
@@ -29,7 +31,9 @@ def product(db, category) -> Product:
 
 @pytest.fixture
 def product_store(db, product, store) -> ProductStore:
-    return ProductStore.objects.create(product=product, store=store, price=Decimal("15.00"), quantity=100)
+    return ProductStore.objects.create(
+        product=product, store=store, price=Decimal("15.00"), quantity=100
+    )
 
 
 @pytest.mark.django_db
@@ -63,7 +67,7 @@ class TestCategoryModel:
     def test_category_parent_protect_on_delete(self) -> None:
         parent = Category.objects.create(name="Electronics")
         Category.objects.create(name="Laptops", parent=parent)
-        with pytest.raises(Exception):
+        with pytest.raises(ProtectedError):
             parent.delete()
 
     def test_category_str(self) -> None:
@@ -141,7 +145,7 @@ class TestProductModel:
 
     def test_product_category_protect_on_delete(self, category) -> None:
         Product.objects.create(name="Laptop", category=category)
-        with pytest.raises(Exception):
+        with pytest.raises(ProtectedError):
             category.delete()
 
     def test_product_str(self, category) -> None:
@@ -193,6 +197,7 @@ class TestProductImageModel:
         """Create a simple test image."""
         img = Image.new("RGB", (100, 100), color="red")
         from io import BytesIO
+
         buffer = BytesIO()
         img.save(buffer, format="JPEG")
         buffer.seek(0)
@@ -241,19 +246,25 @@ class TestProductStoreModel:
         assert assoc.is_available is True
 
     def test_unique_product_store_constraint(self, product, store) -> None:
-        ProductStore.objects.create(product=product, store=store, price=Decimal("15.00"), quantity=100)
+        ProductStore.objects.create(
+            product=product, store=store, price=Decimal("15.00"), quantity=100
+        )
         # Try to create another association with same product and store
-        with pytest.raises(Exception):
-            ProductStore.objects.create(product=product, store=store, price=Decimal("20.00"), quantity=50)
+        with pytest.raises((ValidationError, IntegrityError)):
+            ProductStore.objects.create(
+                product=product, store=store, price=Decimal("20.00"), quantity=50
+            )
 
     def test_negative_price_rejected(self, product, store) -> None:
         from django.core.exceptions import ValidationError
+
         assoc = ProductStore(product=product, store=store, price=Decimal("-5.00"), quantity=100)
         with pytest.raises(ValidationError):
             assoc.full_clean()
 
     def test_negative_quantity_rejected(self, product, store) -> None:
         from django.core.exceptions import ValidationError
+
         assoc = ProductStore(product=product, store=store, price=Decimal("15.00"), quantity=-1)
         with pytest.raises(ValidationError):
             assoc.full_clean()
@@ -271,7 +282,9 @@ class TestProductStoreModel:
         assert assoc.price == Decimal("16.00")
 
     def test_str_representation(self, product, store) -> None:
-        assoc = ProductStore.objects.create(product=product, store=store, price=Decimal("15.00"), quantity=100)
+        assoc = ProductStore.objects.create(
+            product=product, store=store, price=Decimal("15.00"), quantity=100
+        )
         assert "15.00" in str(assoc)
         assert product.name in str(assoc)
         assert store.name in str(assoc)

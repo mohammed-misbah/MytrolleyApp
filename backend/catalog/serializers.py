@@ -308,11 +308,7 @@ class ProductListSerializer(serializers.ModelSerializer):
         if store_id:
             associations = list(obj.store_associations.all())
             association = next(
-                (
-                    item
-                    for item in associations
-                    if item.store_id == store_id and item.is_available
-                ),
+                (item for item in associations if item.store_id == store_id and item.is_available),
                 None,
             )
             if association is not None:
