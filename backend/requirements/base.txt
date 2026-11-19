@@ -6,3 +6,6 @@ drf-spectacular==0.30.0
 psycopg[binary]==3.3.9
 djangorestframework-simplejwt==5.5.1
 Pillow
+# Private object storage for product images (DigitalOcean Spaces / S3 compatible).
+boto3==1.40.30
+django-storages==1.14.6

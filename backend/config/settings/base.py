@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from pathlib import Path
+from typing import Any
 
 from config.env import (
     get_admin_path,
@@ -21,6 +22,7 @@ from config.env import (
     get_networks,
     get_origins,
     get_secret_key,
+    get_spaces_config,
     get_sslmode,
     load_env_file,
 )
@@ -160,11 +162,40 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-# Uploaded catalogue images live under BASE_DIR (e.g. products/<id>/images/...).
-# An explicit root keeps ImageField.path absolute regardless of the working
-# directory used to start the server. No public URL prefix is exposed here;
-# images are served only through the visibility-checked public image endpoint.
+
+# Product images are served only through authorised API endpoints, never from a
+# public MEDIA_URL. Local storage keeps files under BASE_DIR; Spaces storage
+# keeps private objects in the configured bucket.
 MEDIA_ROOT = BASE_DIR
+MEDIA_URL = ""
+
+STORAGES: dict[str, dict[str, Any]] = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
+_SPACES = get_spaces_config()
+if _SPACES["enabled"]:
+    STORAGES["default"] = {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "access_key": _SPACES["access_key"],
+            "secret_key": _SPACES["secret_key"],
+            "bucket_name": _SPACES["bucket"],
+            "region_name": _SPACES["region"],
+            "endpoint_url": _SPACES["endpoint"],
+            # Objects stay private: no ACL and no public-read policy.
+            "default_acl": None,
+            "querystring_auth": True,
+            "querystring_expire": 300,
+            "use_ssl": True,
+            "file_overwrite": False,
+            "location": "",
+        },
+    }
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ---------------------------------------------------------------------------

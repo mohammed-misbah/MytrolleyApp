@@ -8,10 +8,10 @@ inactive, hidden or soft-deleted records. Administrative views in
 from __future__ import annotations
 
 import mimetypes
-import os
 from collections.abc import Sequence
 from typing import Any
 
+from django.core.files.storage import default_storage
 from django.db.models import Count, Prefetch, Q
 from django.http import FileResponse, Http404
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -297,7 +297,7 @@ class PublicProductDetailView(PublicAPIView):
         if "store" in request.query_params:
             try:
                 store_id = int(request.query_params["store"])
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 raise serializers.ValidationError({"store": "Enter a valid store id."}) from None
             if not Store.objects.filter(pk=store_id, is_active=True).exists():
                 raise serializers.ValidationError({"store": "Select a valid active store."})
@@ -344,8 +344,9 @@ class PublicImageView(PublicAPIView):
         )
         if image is None or not is_product_public(image.product):
             raise Http404
-        path = image.image.path
-        if not os.path.isfile(path):
+        # Storage-agnostic: works with local files and private S3/Spaces objects.
+        name = image.image.name
+        if not name or not default_storage.exists(name):
             raise Http404
-        content_type = mimetypes.guess_type(path)[0] or "application/octet-stream"
-        return FileResponse(open(path, "rb"), content_type=content_type)
+        content_type = mimetypes.guess_type(name)[0] or "application/octet-stream"
+        return FileResponse(default_storage.open(name, "rb"), content_type=content_type)

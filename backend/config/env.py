@@ -228,6 +228,58 @@ def get_admin_path() -> str:
     return normalized
 
 
+def get_spaces_config() -> dict[str, str | bool]:
+    """Parse and validate DigitalOcean Spaces settings.
+
+    Returns a plain dict so both settings modules and tests can use it.
+    Secrets are never included in error messages.
+    """
+    enabled = get_bool("USE_SPACES_STORAGE", default=False)
+    access_key = get_env("SPACES_ACCESS_KEY").strip()
+    secret_key = get_env("SPACES_SECRET_KEY").strip()
+    bucket = get_env("SPACES_BUCKET_NAME", default="mytrolley-product-management-media").strip()
+    region = get_env("SPACES_REGION", default="sgp1").strip()
+    endpoint = get_env("SPACES_ENDPOINT_URL", default="https://sgp1.digitaloceanspaces.com").strip()
+
+    if not enabled:
+        return {
+            "enabled": False,
+            "access_key": access_key,
+            "secret_key": secret_key,
+            "bucket": bucket,
+            "region": region,
+            "endpoint": endpoint,
+        }
+
+    missing = [
+        name
+        for name, value in (
+            ("SPACES_ACCESS_KEY", access_key),
+            ("SPACES_SECRET_KEY", secret_key),
+            ("SPACES_BUCKET_NAME", bucket),
+            ("SPACES_REGION", region),
+            ("SPACES_ENDPOINT_URL", endpoint),
+        )
+        if not value
+    ]
+    if missing:
+        raise ImproperlyConfigured("USE_SPACES_STORAGE=true requires: " + ", ".join(missing) + ".")
+    parts = urlsplit(endpoint)
+    if parts.scheme not in {"http", "https"} or not parts.netloc:
+        raise ImproperlyConfigured("SPACES_ENDPOINT_URL must be an absolute http(s) URL.")
+    if not bucket or "/" in bucket:
+        raise ImproperlyConfigured("SPACES_BUCKET_NAME must be a single bucket name.")
+
+    return {
+        "enabled": True,
+        "access_key": access_key,
+        "secret_key": secret_key,
+        "bucket": bucket,
+        "region": region,
+        "endpoint": endpoint,
+    }
+
+
 def get_networks(name: str) -> tuple[str, ...]:
     """Validate exact IP addresses or CIDR networks for an allowlist."""
     entries = get_list(name)

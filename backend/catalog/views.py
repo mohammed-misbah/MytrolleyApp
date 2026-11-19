@@ -21,6 +21,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import HasBusinessPermission
+from catalog.image_storage import delete_stored_image_after_commit
 from catalog.models import Category, Product, ProductAttribute, ProductImage, ProductStore, Store
 from catalog.serializers import (
     CategorySerializer,
@@ -55,7 +56,7 @@ def integrity_conflict(message: str) -> Callable[[_F], _F]:
         def wrapper(self: Any, request: Request, *args: Any, **kwargs: Any) -> Response:
             try:
                 return view(self, request, *args, **kwargs)
-            except (IntegrityError, DjangoValidationError):
+            except IntegrityError, DjangoValidationError:
                 _logger.warning(
                     "catalog.integrity_conflict",
                     extra={"event": "catalog.integrity_conflict"},
@@ -833,9 +834,14 @@ class ProductImageDetailView(APIView):
     def patch(self, request: Request, product_id: int, image_id: int) -> Response:
         product = self.get_product(product_id)
         image = self.get_image(product, image_id)
+        old_name = image.image.name if image.image else ""
         serializer = ProductImageWriteSerializer(image, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         image = serializer.save()
+        new_name = image.image.name if image.image else ""
+        if old_name and old_name != new_name:
+            # Remove the replaced object only after the database change commits.
+            delete_stored_image_after_commit(old_name)
         return Response(ProductImageSerializer(image, context={"request": request}).data)
 
     @extend_schema(
@@ -852,7 +858,9 @@ class ProductImageDetailView(APIView):
     def delete(self, request: Request, product_id: int, image_id: int) -> Response:
         product = self.get_product(product_id)
         image = self.get_image(product, image_id)
+        stored_name = image.image.name if image.image else ""
         image.delete()
+        delete_stored_image_after_commit(stored_name)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

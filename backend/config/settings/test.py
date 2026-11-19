@@ -17,3 +17,10 @@ ALLOWED_HOSTS = ["testserver", "localhost", "127.0.0.1"]
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 
 ENABLE_API_DOCS = True
+
+# Automated tests must never write to a real bucket. Always use temporary local
+# storage here, regardless of a developer's .env or process environment.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+}
