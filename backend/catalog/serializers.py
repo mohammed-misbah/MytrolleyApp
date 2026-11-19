@@ -5,6 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from django.conf import settings
 from rest_framework import serializers
 
 from catalog.models import Category, Product, ProductAttribute, ProductImage, ProductStore, Store
@@ -221,6 +222,12 @@ class ProductImageWriteSerializer(StrictModelSerializer):
     class Meta:
         model = ProductImage
         fields = ["image", "alt_text", "display_order", "is_primary"]
+
+    def validate_image(self, value: Any) -> Any:
+        """Reject images larger than the configured 1 MB per-file limit."""
+        if value.size > settings.PRODUCT_IMAGE_MAX_BYTES:
+            raise serializers.ValidationError("File exceeds the 1 MB limit.")
+        return value
 
 
 class ProductStoreSerializer(serializers.ModelSerializer):

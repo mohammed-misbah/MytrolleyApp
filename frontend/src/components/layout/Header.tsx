@@ -1,13 +1,5 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import {
-  Bell,
-  CalendarDays,
-  ChevronDown,
-  Menu,
-  UserRound,
-  LogOut,
-  ArrowUpRight,
-} from 'lucide-react'
+import { Menu, UserRound, LogOut, ArrowUpRight } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { GlobalSearch } from './GlobalSearch'
@@ -58,17 +50,6 @@ export function Header({ onOpenMobile }: { onOpenMobile: () => void }) {
 
       <div className="flex flex-wrap items-center gap-3">
         <GlobalSearch />
-
-        <div className="relative flex h-[46px] w-[46px] items-center justify-center rounded-[14px]" style={glass}>
-          <Bell className="h-[18px] w-[18px] text-[var(--text-2)]" strokeWidth={1.8} />
-          <span aria-hidden className="absolute right-[12px] top-[11px] h-2 w-2 rounded-full" style={{ background: 'var(--accent)' }} />
-        </div>
-
-        <div className="flex h-[46px] items-center gap-[10px] rounded-[14px] px-4" style={glass}>
-          <CalendarDays className="h-4 w-4 text-[var(--text-2)]" strokeWidth={1.8} />
-          <span className="whitespace-nowrap text-[13.5px] text-[var(--text-1)]">Last 30 days</span>
-          <ChevronDown className="h-[15px] w-[15px] text-[var(--text-2)]" strokeWidth={1.8} />
-        </div>
 
         <Link
           to="/products"

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Eye, Pencil, Trash2, ChevronLeft, ChevronRight, PackageSearch } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Category, Paginated, ProductDetail, ProductFilters, ProductListItem, Store } from '@/types'
@@ -13,7 +13,14 @@ import { formatDate, formatMoney } from '@/utils/format'
 import { validatePriceRange } from '@/utils/validation'
 
 export function ProductsPage() {
-  const [filters, setFilters] = useState<ProductFilters>({ page: 1, page_size: 10, ordering: 'name' })
+  const location = useLocation()
+  const initialStore = new URLSearchParams(location.search).get('store')
+  const [filters, setFilters] = useState<ProductFilters>(() => ({
+    page: 1,
+    page_size: 10,
+    ordering: 'name',
+    ...(initialStore && Number(initialStore) > 0 ? { store: Number(initialStore) } : {}),
+  }))
   const [data, setData] = useState<Paginated<ProductListItem> | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [stores, setStores] = useState<Store[]>([])

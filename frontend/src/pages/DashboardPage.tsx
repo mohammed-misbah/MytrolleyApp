@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   Boxes,
   CheckCircle2,
@@ -13,11 +13,12 @@ import {
   RefreshCw,
   Loader2,
 } from 'lucide-react'
-import type { ProductListItem, Store } from '@/types'
+import type { ProductFilters, ProductListItem, Store } from '@/types'
 import { catalogService } from '@/services/catalogService'
 import { toError } from '@/services/apiClient'
 import { formatDate } from '@/utils/format'
 import { EmptyState } from '@/components/ui/feedback'
+import { StoreSelect } from '@/components/ui/StoreSelect'
 import { defaultVisibleStoreIds, reorderVisibleStoreIds } from '@/utils/storeSelection'
 
 interface Metrics {
@@ -106,8 +107,8 @@ function AreaChart({ products, total }: { products: ProductListItem[]; total: nu
     <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="h-full min-h-[240px] w-full" aria-hidden>
       <defs>
         <linearGradient id="mt-area" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#EE7B3A" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="#EE7B3A" stopOpacity="0" />
+          <stop offset="0%" stopColor="#EF3B3B" stopOpacity="0.22" />
+          <stop offset="100%" stopColor="#EF3B3B" stopOpacity="0" />
         </linearGradient>
       </defs>
       {[0, 1, 2, 3].map((row) => {
@@ -117,9 +118,9 @@ function AreaChart({ products, total }: { products: ProductListItem[]; total: nu
         )
       })}
       <path d={area} fill="url(#mt-area)" />
-      <path d={line} fill="none" stroke="#EE7B3A" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-      <circle cx={last.x} cy={last.y} r="12" fill="rgba(238,123,58,.18)" />
-      <circle cx={last.x} cy={last.y} r="6" fill="#EE7B3A" />
+      <path d={line} fill="none" stroke="#EF3B3B" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      <circle cx={last.x} cy={last.y} r="12" fill="rgba(239,59,59,.18)" />
+      <circle cx={last.x} cy={last.y} r="6" fill="#EF3B3B" />
     </svg>
   )
 }
@@ -140,11 +141,11 @@ function PipelineTile({ warm, icon, value, label, helper }: { warm: boolean; ico
   return (
     <div
       className="flex min-h-[178px] flex-col rounded-[16px] p-[18px]"
-      style={warm ? { background: 'var(--warm-tile)', border: '1px solid var(--warm-border)' } : tileStyle}
+      style={warm ? { background: '#FEECEC', border: '1px solid rgba(240,16,16,.18)' } : tileStyle}
     >
       <span
         className="flex h-[38px] w-[38px] items-center justify-center rounded-[11px]"
-        style={warm ? { background: 'var(--chip-warm-bg)', color: 'var(--chip-warm-icon)' } : { background: 'var(--chip-neutral-bg)', color: 'var(--chip-neutral-icon)' }}
+        style={warm ? { background: '#FDE0E0', color: '#EF3B3B' } : { background: 'var(--chip-neutral-bg)', color: 'var(--chip-neutral-icon)' }}
       >
         {icon}
       </span>
@@ -156,12 +157,21 @@ function PipelineTile({ warm, icon, value, label, helper }: { warm: boolean; ico
 }
 
 export function DashboardPage() {
+  const navigate = useNavigate()
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedStore, setSelectedStore] = useState<number | ''>('')
   const [visibleStoreIds, setVisibleStoreIds] = useState<number[]>([])
   const [stores, setStores] = useState<Store[]>([])
+  const [statusTab, setStatusTab] = useState<'all' | 'active' | 'inactive'>('all')
+  const [tabProducts, setTabProducts] = useState<ProductListItem[]>([])
+  const [tabLoading, setTabLoading] = useState(false)
+  const [tabError, setTabError] = useState<string | null>(null)
+  const tabRequest = useRef(0)
+  const firstTabRun = useRef(true)
+  const [outOfStockCounts, setOutOfStockCounts] = useState<Record<number, number>>({})
+  const countRequest = useRef(0)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -181,6 +191,7 @@ export function DashboardPage() {
         stores: storeList.length,
         recent: recent.results,
       })
+      setTabProducts(recent.results)
       setStores(storeList)
       setVisibleStoreIds((current) =>
         current.length ? current : defaultVisibleStoreIds(storeList.map((store) => store.id)),
@@ -195,6 +206,64 @@ export function DashboardPage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (firstTabRun.current) {
+      firstTabRun.current = false
+      return
+    }
+    const requestId = ++tabRequest.current
+    setTabLoading(true)
+    setTabError(null)
+    const filters: ProductFilters = { ordering: '-created_at', page_size: 5 }
+    if (statusTab === 'active') filters.is_active = true
+    if (statusTab === 'inactive') filters.is_active = false
+    void catalogService
+      .listProducts(filters)
+      .then((result) => {
+        if (requestId !== tabRequest.current) return
+        setTabProducts(result.results)
+        setTabLoading(false)
+      })
+      .catch((err: unknown) => {
+        if (requestId !== tabRequest.current) return
+        setTabError(toError(err).message)
+        setTabProducts([])
+        setTabLoading(false)
+      })
+  }, [statusTab])
+
+  const outOfStockKey = [...visibleStoreIds.slice(0, 3)].sort((a, b) => a - b).join(',')
+
+  useEffect(() => {
+    const ids = outOfStockKey ? outOfStockKey.split(',').map(Number) : []
+    if (ids.length === 0) return
+    const requestId = ++countRequest.current
+    const countForStore = async (storeId: number): Promise<[number, number]> => {
+      const seen = new Set<number>()
+      let count = 0
+      let page = 1
+      let totalPages = 1
+      do {
+        const result = await catalogService.listProducts({ store: storeId, page, page_size: 100 })
+        totalPages = result.total_pages
+        result.results.forEach((product) => {
+          if (product.store_price?.quantity === 0 && !seen.has(product.id)) {
+            seen.add(product.id)
+            count += 1
+          }
+        })
+        page += 1
+      } while (page <= totalPages)
+      return [storeId, count]
+    }
+    void Promise.all(ids.map(countForStore))
+      .then((entries) => {
+        if (requestId !== countRequest.current) return
+        setOutOfStockCounts((current) => ({ ...current, ...Object.fromEntries(entries) }))
+      })
+      .catch(() => undefined)
+  }, [outOfStockKey])
 
   if (loading) {
     return (
@@ -272,7 +341,7 @@ export function DashboardPage() {
               <h3 className={heading}>Product pipeline</h3>
               <p className={sub}>Status of products across the catalogue</p>
             </div>
-            <Link to="/products" className={`${link} flex shrink-0 items-center gap-1`}>
+            <Link to="/products" className={`${link} flex shrink-0 items-center gap-1`} style={{ color: '#D62C2C' }}>
               View products <ArrowUpRight className="h-[15px] w-[15px]" {...iconStroke} />
             </Link>
           </div>
@@ -291,20 +360,7 @@ export function DashboardPage() {
             <p className={sub}>Available products by store</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <label className="flex h-[46px] items-center gap-2 rounded-[14px] border border-[var(--line-input)] bg-white px-4">
-              <span className="text-[13.5px] text-[var(--text-2)]">Select store</span>
-              <select
-                value={selectedStore}
-                onChange={(e) => selectStore(e.target.value ? Number(e.target.value) : '')}
-                className="max-w-[180px] bg-transparent text-[13.5px] text-[var(--text-1)] outline-none"
-              >
-                <option value="">All stores</option>
-                {stores.map((store) => (
-                  <option key={store.id} value={store.id}>{store.name} ({store.code})</option>
-                ))}
-              </select>
-              <Chevron />
-            </label>
+            <StoreSelect value={selectedStore} stores={stores} onChange={selectStore} />
             <Link to="/stores" className={`${link} flex items-center gap-1`}>
               View stores <ArrowUpRight className="h-[15px] w-[15px]" {...iconStroke} />
             </Link>
@@ -315,18 +371,18 @@ export function DashboardPage() {
         )}
         <div className="mt-5 grid grid-cols-1 gap-[18px] md:grid-cols-2 min-[1280px]:grid-cols-3">
           {visibleStores.map((store, index) => {
-            const warm = index % 3 === 2
+            const iconTileStyles = [
+              { background: 'linear-gradient(145deg, #11472F 0%, #0E3D28 100%)', boxShadow: '0 10px 22px rgba(14,61,40,.30)' },
+              { background: 'linear-gradient(145deg, #258055 0%, #1F6B47 100%)', boxShadow: '0 10px 22px rgba(31,107,71,.28)' },
+              { background: 'linear-gradient(145deg, #55B084 0%, #3E9A6E 100%)', boxShadow: '0 10px 22px rgba(62,154,110,.26)' },
+            ]
             return (
               <div key={store.id} className="flex items-center gap-[18px] rounded-[18px] p-[18px]" style={tileStyle}>
                 <div
                   className="flex h-[96px] w-[96px] shrink-0 items-center justify-center rounded-[16px]"
-                  style={
-                    warm
-                      ? { background: 'linear-gradient(145deg,#FBD9B8,#F3B27E)', boxShadow: '0 10px 22px rgba(24,27,25,.22)' }
-                      : { background: 'var(--dark)', boxShadow: '0 10px 22px rgba(24,27,25,.22)' }
-                  }
+                  style={iconTileStyles[index % 3]}
                 >
-                  <StoreIcon className="h-[42px] w-[42px]" style={{ color: warm ? '#8A4A12' : 'var(--avatar-letter)' }} strokeWidth={1.4} />
+                  <StoreIcon className="h-[42px] w-[42px]" style={{ color: '#FFFFFF' }} strokeWidth={1.4} />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[15px] font-bold text-[var(--text-1)]">{store.name}</p>
@@ -336,12 +392,25 @@ export function DashboardPage() {
                       <p className="text-[22px] font-bold text-[var(--text-1)]">{store.product_count ?? 0}</p>
                     </div>
                     <div>
-                      <p className="text-[11.5px] text-[var(--text-2)]">Low stock</p>
-                      <p className="text-[22px] font-bold text-[var(--warn)]">—</p>
+                      <p className="text-[11.5px] text-[var(--text-2)]">Out of stock</p>
+                      <p
+                        className="text-[22px] font-bold"
+                        style={
+                          outOfStockCounts[store.id] === undefined
+                            ? { color: 'var(--text-3)' }
+                            : { color: 'var(--warn)' }
+                        }
+                      >
+                        {outOfStockCounts[store.id] ?? '—'}
+                      </p>
                     </div>
                   </div>
-                  <button type="button" className="rounded-[10px] border border-[rgba(45,30,15,.14)] bg-white px-[22px] py-2 text-[13px] text-[var(--text-1)] hover:bg-[var(--tile)]">
-                    Review
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/products?store=${store.id}`)}
+                    className="rounded-[10px] border border-[rgba(45,30,15,.14)] bg-white px-[22px] py-2 text-[13px] text-[var(--text-1)] hover:bg-[var(--tile)]"
+                  >
+                    View inventory
                   </button>
                 </div>
               </div>
@@ -366,23 +435,25 @@ export function DashboardPage() {
             style={{ background: 'var(--tabs-bg)' }}
           >
             {[
-              { label: 'All', count: total, active: true },
-              { label: 'Active', count: active, active: false },
-              { label: 'Inactive', count: inactive, active: false },
+              { key: 'all' as const, label: 'All', count: total },
+              { key: 'active' as const, label: 'Active', count: active },
+              { key: 'inactive' as const, label: 'Inactive', count: inactive },
             ].map((tab) => (
-              <span
-                key={tab.label}
+              <button
+                type="button"
+                key={tab.key}
                 className="flex items-center rounded-[10px] px-4 py-[7px] text-[12.5px]"
-                style={tab.active ? { background: 'var(--dark)', color: '#FFFFFF' } : { color: 'var(--text-2)' }}
+                style={tab.key === statusTab ? { background: 'var(--dark)', color: '#FFFFFF' } : { color: 'var(--text-2)' }}
+                onClick={() => setStatusTab(tab.key)}
               >
                 {tab.label}
                 <span
                   className="ml-[6px] rounded-full px-[7px] py-[2px] text-[11px]"
-                  style={tab.active ? { background: 'rgba(255,255,255,.18)' } : { background: 'rgba(45,30,15,.08)' }}
+                  style={tab.key === statusTab ? { background: 'rgba(255,255,255,.18)' } : { background: 'rgba(45,30,15,.08)' }}
                 >
                   {tab.count}
                 </span>
-              </span>
+              </button>
             ))}
           </div>
           <div className="overflow-x-auto">
@@ -398,7 +469,7 @@ export function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {recent.slice(0, 3).map((product) => (
+                {tabProducts.slice(0, 3).map((product) => (
                   <tr key={product.id} className="h-[66px] border-t hover:bg-[var(--tile)]" style={{ borderColor: 'var(--line)' }}>
                     <td className="px-[10px]">
                       <div className="flex items-center gap-3">
@@ -419,7 +490,15 @@ export function DashboardPage() {
                 ))}
               </tbody>
             </table>
-            {recent.length === 0 && <p className="py-8 text-center text-[13px] text-[var(--text-2)]">No products yet</p>}
+            {tabLoading && (
+              <p className="flex items-center justify-center gap-2 py-8 text-[13px] text-[var(--text-2)]">
+                <Loader2 className="h-4 w-4 animate-spin" {...iconStroke} /> Loading products…
+              </p>
+            )}
+            {tabError && <p className="py-8 text-center text-[13px] text-[var(--danger)]">{tabError}</p>}
+            {!tabLoading && !tabError && tabProducts.length === 0 && (
+              <p className="py-8 text-center text-[13px] text-[var(--text-2)]">No products yet</p>
+            )}
           </div>
         </section>
 
@@ -429,7 +508,7 @@ export function DashboardPage() {
               <h3 className={heading}>Recent activity</h3>
               <p className={sub}>Latest changes in your catalogue</p>
             </div>
-            <Link to="/products" className={`${link} flex items-center gap-1`}>
+            <Link to="/products" className={`${link} flex items-center gap-1`} style={{ color: '#D62C2C' }}>
               View all <ArrowUpRight className="h-[15px] w-[15px]" {...iconStroke} />
             </Link>
           </div>
@@ -445,7 +524,7 @@ export function DashboardPage() {
                 >
                   <span
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
-                    style={warm ? { background: 'var(--chip-warm-bg)', color: 'var(--chip-warm-icon)' } : { background: 'var(--chip-neutral-bg)', color: 'var(--chip-neutral-icon)' }}
+                    style={warm ? { background: '#FDE0E0', color: '#EF3B3B' } : { background: 'var(--chip-neutral-bg)', color: 'var(--chip-neutral-icon)' }}
                   >
                     <Icon className="h-[18px] w-[18px]" {...iconStroke} />
                   </span>
@@ -461,13 +540,5 @@ export function DashboardPage() {
         </section>
       </div>
     </div>
-  )
-}
-
-function Chevron() {
-  return (
-    <svg className="h-[15px] w-[15px] shrink-0 text-[var(--text-2)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="m6 9 6 6 6-6" />
-    </svg>
   )
 }

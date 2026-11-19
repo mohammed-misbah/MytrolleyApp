@@ -15,7 +15,7 @@ import { EmptyState, LoadingState } from '@/components/ui/feedback'
 import { attributeSchema, associationSchema, productSchema, type AttributeValues, type AssociationValues, type ProductValues } from '@/schemas'
 import { formatMoney } from '@/utils/format'
 
-const MAX_BYTES = 262_144
+const MAX_BYTES = 1_048_576
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
 
 export function ProductFormPage() {
@@ -109,7 +109,7 @@ export function ProductFormPage() {
         continue
       }
       if (file.size > MAX_BYTES) {
-        toast.error(`${file.name}: file exceeds 256 KB limit.`)
+        toast.error('File exceeds the 1 MB limit.')
         continue
       }
       try {
@@ -327,7 +327,7 @@ export function ProductFormPage() {
                 ))}
               </div>
             ) : (
-              <EmptyState title="No images" description="Upload up to 10 images (max 256 KB each)." />
+              <EmptyState title="No images" description="Upload up to 10 images (max 1 MB each)." />
             )}
           </section>
 
