@@ -272,7 +272,7 @@ export function ProductsPage() {
             <p className="w-full text-[11px] text-subtle">Select a store to filter products by price.</p>
           )}
           {priceError && (
-            <p className="w-full text-xs font-medium text-danger">{priceError}</p>
+            <p className="w-full text-xs font-medium text-[var(--danger)]">{priceError}</p>
           )}
         </div>
       </div>
@@ -288,7 +288,7 @@ export function ProductsPage() {
           <>
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[900px] text-left text-sm">
-                <thead className="bg-muted text-[11px] uppercase tracking-wide text-subtle">
+                <thead className="text-[11px] uppercase tracking-wide text-subtle">
                   <tr>
                     <th className="px-4 py-3 font-semibold">Image</th>
                     <th className="px-4 py-3 font-semibold">Product</th>
@@ -301,7 +301,7 @@ export function ProductsPage() {
                 </thead>
                 <tbody className="divide-y divide-line">
                   {data.results.map((product) => (
-                    <tr key={product.id} className="transition-colors hover:bg-canvas/70">
+                    <tr key={product.id} className="transition-colors hover:bg-[var(--tile)]">
                       <td className="px-4 py-3">
                         <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-control bg-muted">
                           {product.primary_image?.image_url ? (
@@ -329,7 +329,7 @@ export function ProductsPage() {
                       <td className="px-4 py-3">
                         <span
                           className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
-                            product.is_active ? 'bg-lime-soft text-forest' : 'bg-muted text-subtle'
+                            product.is_active ? 'bg-[var(--pos-bg)] text-[var(--pos)]' : 'bg-muted text-subtle'
                           }`}
                         >
                           {product.is_active ? 'Active' : 'Inactive'}
@@ -344,7 +344,7 @@ export function ProductsPage() {
                             <Button variant="ghost" size="icon" title="Edit"><Pencil className="h-4 w-4" /></Button>
                           </Link>
                           <Button variant="ghost" size="icon" title="Delete" onClick={() => setToDelete(product)}>
-                            <Trash2 className="h-4 w-4 text-danger" />
+                            <Trash2 className="h-4 w-4 text-[var(--danger)]" />
                           </Button>
                         </div>
                       </td>
@@ -369,7 +369,7 @@ export function ProductsPage() {
                       <p className="truncate font-medium text-ink">{product.name}</p>
                       <p className="text-xs text-subtle">{product.category}</p>
                     </div>
-                    <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${product.is_active ? 'bg-lime-soft text-forest' : 'bg-muted text-subtle'}`}>
+                    <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${product.is_active ? 'bg-[var(--pos-bg)] text-[var(--pos)]' : 'bg-muted text-subtle'}`}>
                       {product.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </div>

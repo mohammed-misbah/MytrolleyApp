@@ -115,17 +115,17 @@ export function AttributesPage() {
           <EmptyState title="No attributes" description="Add flexible attributes for this product." />
         ) : (
           <table className="w-full text-left text-sm">
-            <thead className="bg-muted text-[11px] uppercase tracking-wide text-subtle">
+            <thead className="text-[11px] uppercase tracking-wide text-subtle">
               <tr><th className="px-5 py-3 font-semibold">Name</th><th className="px-5 py-3 font-semibold">Value</th><th className="px-5 py-3 text-right font-semibold">Actions</th></tr>
             </thead>
             <tbody className="divide-y divide-line">
               {items.map((a) => (
-                <tr key={a.id} className="hover:bg-canvas/70">
+                <tr key={a.id} className="hover:bg-[var(--tile)]">
                   <td className="px-5 py-3 font-medium text-ink">{a.name}</td>
                   <td className="px-5 py-3 text-subtle">{a.value}</td>
                   <td className="px-5 py-3 text-right">
                     <Button variant="ghost" size="icon" onClick={() => openForm(a)}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => setToDelete(a.id)}><Trash2 className="h-4 w-4 text-danger" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => setToDelete(a.id)}><Trash2 className="h-4 w-4 text-[var(--danger)]" /></Button>
                   </td>
                 </tr>
               ))}

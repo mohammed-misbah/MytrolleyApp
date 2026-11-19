@@ -297,7 +297,7 @@ class PublicProductDetailView(PublicAPIView):
         if "store" in request.query_params:
             try:
                 store_id = int(request.query_params["store"])
-            except TypeError, ValueError:
+            except (TypeError, ValueError):
                 raise serializers.ValidationError({"store": "Enter a valid store id."}) from None
             if not Store.objects.filter(pk=store_id, is_active=True).exists():
                 raise serializers.ValidationError({"store": "Select a valid active store."})

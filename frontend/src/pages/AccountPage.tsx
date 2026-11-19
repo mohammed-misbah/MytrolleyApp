@@ -26,7 +26,7 @@ export function AccountPage() {
 
       <section className="max-w-2xl rounded-card border border-line bg-white p-5 shadow-card">
         <div className="mb-4 flex items-center gap-2">
-          <span className="rounded-control bg-lime-soft p-2 text-forest">
+          <span className="rounded-control bg-[var(--pos-bg)] p-2 text-[var(--pos)]">
             <UserRound className="h-4 w-4" />
           </span>
           <h3 className="text-sm font-semibold text-ink">Account information</h3>

@@ -96,19 +96,19 @@ export function StoresPage() {
           <EmptyState title="No stores" description="Add a store to start associating products." />
         ) : (
           <table className="w-full text-left text-sm">
-            <thead className="bg-muted text-[11px] uppercase tracking-wide text-subtle">
+            <thead className="text-[11px] uppercase tracking-wide text-subtle">
               <tr><th className="px-5 py-3 font-semibold">Store</th><th className="px-5 py-3 font-semibold">Code</th><th className="px-5 py-3 font-semibold">Address</th><th className="px-5 py-3 font-semibold">Products</th><th className="px-5 py-3 text-right font-semibold">Actions</th></tr>
             </thead>
             <tbody className="divide-y divide-line">
               {items.map((s) => (
-                <tr key={s.id} className="hover:bg-canvas/70">
+                <tr key={s.id} className="hover:bg-[var(--tile)]">
                   <td className="px-5 py-3 font-medium text-ink">{s.name}</td>
-                  <td className="px-5 py-3"><span className="rounded-full bg-lime-soft px-2 py-1 text-[11px] font-semibold text-forest">{s.code}</span></td>
+                  <td className="px-5 py-3"><span className="rounded-full bg-[var(--pos-bg)] px-2 py-1 text-[11px] font-semibold text-[var(--pos)]">{s.code}</span></td>
                   <td className="px-5 py-3 text-subtle">{s.address || '—'}</td>
                   <td className="px-5 py-3 tabular-nums text-subtle">{s.product_count ?? 0}</td>
                   <td className="px-5 py-3 text-right">
                     <Button variant="ghost" size="icon" onClick={() => openForm(s)} title="Edit"><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => setToDelete(s)} title="Delete"><Trash2 className="h-4 w-4 text-danger" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => setToDelete(s)} title="Delete"><Trash2 className="h-4 w-4 text-[var(--danger)]" /></Button>
                   </td>
                 </tr>
               ))}

@@ -42,10 +42,10 @@ export function LoginPage() {
 
   return (
     <div className="flex min-h-screen">
-      <div className="hidden w-1/2 flex-col justify-between bg-forest px-14 py-12 text-white lg:flex">
+      <div className="hidden w-1/2 flex-col justify-between bg-[var(--dark)] px-14 py-12 text-white lg:flex">
         <img src={logo} alt="MY Trolley" className="h-14 w-auto" />
         <div className="max-w-md space-y-5">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-lime">
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-[var(--accent)]">
             <Leaf className="h-3.5 w-3.5" /> Everything for you.
           </div>
           <h2 className="text-4xl font-semibold leading-tight">Product management, beautifully organised.</h2>
@@ -79,7 +79,7 @@ export function LoginPage() {
               </div>
             </Field>
             {errors.root?.message && (
-              <p className="rounded-control bg-danger/10 px-3 py-2 text-sm text-danger">{errors.root.message}</p>
+              <p className="rounded-control bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger)]">{errors.root.message}</p>
             )}
             <Button type="submit" className="w-full" disabled={submitting}>
               {submitting ? 'Signing in…' : 'Sign in'}

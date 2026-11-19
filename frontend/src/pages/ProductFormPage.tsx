@@ -280,7 +280,7 @@ export function ProductFormPage() {
                     <div className="flex gap-1">
                       <Button type="button" variant="ghost" size="sm" onClick={() => { setEditingAttribute(a.id); setAttributeOpen(true) }}>Edit</Button>
                       <Button type="button" variant="ghost" size="icon" onClick={() => void deleteAttributeRow(a.id)}>
-                        <Trash2 className="h-4 w-4 text-danger" />
+                        <Trash2 className="h-4 w-4 text-[var(--danger)]" />
                       </Button>
                     </div>
                   </div>
@@ -309,7 +309,7 @@ export function ProductFormPage() {
                   <div key={image.id} className="group relative overflow-hidden rounded-card border border-line bg-muted">
                     <img src={image.image_url} alt={image.alt_text} className="aspect-square w-full object-cover" />
                     {image.is_primary && (
-                      <span className="absolute left-2 top-2 rounded-full bg-lime px-2 py-0.5 text-[10px] font-semibold text-forest">Primary</span>
+                      <span className="absolute left-2 top-2 rounded-full bg-lime px-2 py-0.5 text-[10px] font-semibold text-[var(--pos)]">Primary</span>
                     )}
                     <div className="flex items-center justify-between gap-1 p-1.5">
                       {image.is_primary ? (
@@ -320,7 +320,7 @@ export function ProductFormPage() {
                         </Button>
                       )}
                       <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={() => setDeleteImage(image)}>
-                        <Trash2 className="h-3.5 w-3.5 text-danger" />
+                        <Trash2 className="h-3.5 w-3.5 text-[var(--danger)]" />
                       </Button>
                     </div>
                   </div>
@@ -354,7 +354,7 @@ export function ProductFormPage() {
                     <div className="flex gap-1">
                       <Button type="button" size="sm" variant="ghost" onClick={() => { setEditingAssociation(a.id); setAssociationOpen(true) }}>Edit</Button>
                       <Button type="button" size="icon" variant="ghost" onClick={() => setDeleteAssociation(a)}>
-                        <Trash2 className="h-4 w-4 text-danger" />
+                        <Trash2 className="h-4 w-4 text-[var(--danger)]" />
                       </Button>
                     </div>
                   </div>

@@ -96,19 +96,19 @@ export function CategoriesPage() {
           <EmptyState title="No categories" description="Create a category to organise products." />
         ) : (
           <table className="w-full text-left text-sm">
-            <thead className="bg-muted text-[11px] uppercase tracking-wide text-subtle">
+            <thead className="text-[11px] uppercase tracking-wide text-subtle">
               <tr><th className="px-5 py-3 font-semibold">Name</th><th className="px-5 py-3 font-semibold">Slug</th><th className="px-5 py-3 font-semibold">Products</th><th className="px-5 py-3 font-semibold">Status</th><th className="px-5 py-3 text-right font-semibold">Actions</th></tr>
             </thead>
             <tbody className="divide-y divide-line">
               {items.map((c) => (
-                <tr key={c.id} className="hover:bg-canvas/70">
+                <tr key={c.id} className="hover:bg-[var(--tile)]">
                   <td className="px-5 py-3 font-medium text-ink">{c.name}</td>
                   <td className="px-5 py-3 text-subtle">{c.slug}</td>
                   <td className="px-5 py-3 tabular-nums text-subtle">{c.product_count ?? 0}</td>
-                  <td className="px-5 py-3"><span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${c.is_active ? 'bg-lime-soft text-forest' : 'bg-muted text-subtle'}`}>{c.is_active ? 'Active' : 'Inactive'}</span></td>
+                  <td className="px-5 py-3"><span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${c.is_active ? 'bg-[var(--pos-bg)] text-[var(--pos)]' : 'bg-muted text-subtle'}`}>{c.is_active ? 'Active' : 'Inactive'}</span></td>
                   <td className="px-5 py-3 text-right">
                     <Button variant="ghost" size="icon" onClick={() => openForm(c)} title="Edit"><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => setToDelete(c)} title="Delete"><Trash2 className="h-4 w-4 text-danger" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => setToDelete(c)} title="Delete"><Trash2 className="h-4 w-4 text-[var(--danger)]" /></Button>
                   </td>
                 </tr>
               ))}
