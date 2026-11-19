@@ -17,6 +17,8 @@ import type { ProductListItem, Store } from '@/types'
 import { catalogService } from '@/services/catalogService'
 import { toError } from '@/services/apiClient'
 import { formatDate } from '@/utils/format'
+import { EmptyState } from '@/components/ui/feedback'
+import { defaultVisibleStoreIds, reorderVisibleStoreIds } from '@/utils/storeSelection'
 
 interface Metrics {
   total: number
@@ -158,7 +160,7 @@ export function DashboardPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedStore, setSelectedStore] = useState<number | ''>('')
-  const [availability, setAvailability] = useState(0)
+  const [visibleStoreIds, setVisibleStoreIds] = useState<number[]>([])
   const [stores, setStores] = useState<Store[]>([])
 
   const load = useCallback(async () => {
@@ -180,6 +182,9 @@ export function DashboardPage() {
         recent: recent.results,
       })
       setStores(storeList)
+      setVisibleStoreIds((current) =>
+        current.length ? current : defaultVisibleStoreIds(storeList.map((store) => store.id)),
+      )
     } catch (err) {
       setError(toError(err).message)
     } finally {
@@ -190,17 +195,6 @@ export function DashboardPage() {
   useEffect(() => {
     void load()
   }, [load])
-
-  useEffect(() => {
-    if (selectedStore === '') {
-      setAvailability(0)
-      return
-    }
-    void catalogService
-      .listProducts({ store: Number(selectedStore), is_available: true, page_size: 1 })
-      .then((r) => setAvailability(r.count))
-      .catch(() => setAvailability(0))
-  }, [selectedStore])
 
   if (loading) {
     return (
@@ -230,6 +224,18 @@ export function DashboardPage() {
   const categories = metrics?.categories ?? 0
   const storeCount = metrics?.stores ?? 0
   const recent = metrics?.recent ?? []
+
+  // Presentation-only ordering: unique store IDs, selected store first.
+  const visibleStores = visibleStoreIds
+    .map((id) => stores.find((store) => store.id === id))
+    .filter((store): store is Store => Boolean(store))
+    .slice(0, 3)
+
+  const selectStore = (value: number | '') => {
+    setSelectedStore(value)
+    if (value === '') return
+    setVisibleStoreIds((current) => reorderVisibleStoreIds(current, value))
+  }
 
   const activity = recent.slice(0, 4).map((product) => {
     if (product.updated_at && product.updated_at !== product.created_at) {
@@ -289,7 +295,7 @@ export function DashboardPage() {
               <span className="text-[13.5px] text-[var(--text-2)]">Select store</span>
               <select
                 value={selectedStore}
-                onChange={(e) => setSelectedStore(e.target.value ? Number(e.target.value) : '')}
+                onChange={(e) => selectStore(e.target.value ? Number(e.target.value) : '')}
                 className="max-w-[180px] bg-transparent text-[13.5px] text-[var(--text-1)] outline-none"
               >
                 <option value="">All stores</option>
@@ -304,11 +310,11 @@ export function DashboardPage() {
             </Link>
           </div>
         </div>
-        {selectedStore !== '' && (
-          <p className="mt-3 text-[12.5px] text-[var(--text-2)]">{availability} products available in the selected store</p>
+        {visibleStores.length === 0 && (
+          <EmptyState title="No stores available" description="Add a store to see product availability." />
         )}
         <div className="mt-5 grid grid-cols-1 gap-[18px] md:grid-cols-2 min-[1280px]:grid-cols-3">
-          {stores.slice(0, 3).map((store, index) => {
+          {visibleStores.map((store, index) => {
             const warm = index % 3 === 2
             return (
               <div key={store.id} className="flex items-center gap-[18px] rounded-[18px] p-[18px]" style={tileStyle}>

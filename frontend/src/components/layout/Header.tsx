@@ -1,6 +1,5 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import {
-  Search,
   Bell,
   CalendarDays,
   ChevronDown,
@@ -11,6 +10,7 @@ import {
 } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
+import { GlobalSearch } from './GlobalSearch'
 
 const titles: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -57,14 +57,7 @@ export function Header({ onOpenMobile }: { onOpenMobile: () => void }) {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex h-[46px] w-[360px] items-center gap-[10px] rounded-[14px] px-4" style={glass}>
-          <Search className="h-[18px] w-[18px] shrink-0 text-[var(--text-3)]" strokeWidth={1.8} />
-          <input
-            type="search"
-            placeholder="Search products, categories..."
-            className="h-full w-full min-w-0 bg-transparent text-[13.5px] text-[var(--text-1)] outline-none placeholder:text-[var(--text-3)]"
-          />
-        </div>
+        <GlobalSearch />
 
         <div className="relative flex h-[46px] w-[46px] items-center justify-center rounded-[14px]" style={glass}>
           <Bell className="h-[18px] w-[18px] text-[var(--text-2)]" strokeWidth={1.8} />
