@@ -2,22 +2,88 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --page: #f2f4f2;
+  --card: #ffffff;
+  --tile: #f6f8f6;
+  --text-1: #13241b;
+  --page-title: #0e2217;
+  --text-2: #5e6e65;
+  --text-3: #98a69d;
+  --line-card: rgba(18, 45, 32, .07);
+  --line-input: rgba(18, 45, 32, .09);
+  --line-tile: rgba(18, 45, 32, .06);
+  --line-row: rgba(18, 45, 32, .07);
+  --card-shadow: 0 10px 30px rgba(20, 55, 38, .07), 0 1px 2px rgba(20, 55, 38, .04);
+  --header-shadow: 0 2px 8px rgba(20, 55, 38, .05);
+  --link: #17855f;
+  --positive: #17855f;
+  --positive-bg: rgba(47, 191, 139, .12);
+  --chart-line: #1fa878;
+  --warm: #c57a1e;
+  --bell-dot: #e8a04a;
+  --warm-tile: #fbefe0;
+  --warm-border: rgba(232, 160, 74, .25);
+  --chip-green-bg: #e9efeb;
+  --chip-green-icon: #14704f;
+  --chip-warm-bg: #f8e3c6;
+  --chip-warm-icon: #c57a1e;
+  --chip-neutral-bg: #edf1ee;
+  --chip-neutral-icon: #5e6e65;
+  --brand-dark: linear-gradient(145deg, #14402b, #0a1f15);
+  --brand-dark-shadow: 0 8px 20px rgba(10, 31, 21, .28);
+  --focus: 2px rgba(47, 191, 139, .5);
+  --sidebar-bg: linear-gradient(180deg, #0b1f15, #08170f);
+  --logo-w: 250px;
+  --nav-h: 48px;
+  --nav-mb: 6px;
+  --label-mb: 10px;
+}
+
+@media (max-height: 959px) {
+  :root {
+    --logo-w: 210px;
+    --nav-h: 42px;
+    --nav-mb: 4px;
+    --label-mb: 6px;
+  }
+}
+
+/* Approved green sidebar keeps its own palette. */
+.app-sidebar {
+  --text-1: #eaf2ec;
+  --text-2: #8fa89a;
+  --text-3: #5e7a6b;
+  --accent: #2fbf8b;
+  --accent-glow: rgba(52, 211, 153, .22);
+  --glass-bg: rgba(255, 255, 255, .04);
+  --tile-bg: rgba(255, 255, 255, .035);
+  --btn-text: #06140d;
+  --card-shadow: 0 18px 40px rgba(0, 0, 0, .30);
+}
+
 @layer base {
   * {
-    @apply border-line;
+    border-color: var(--line-card);
   }
   html {
     -webkit-text-size-adjust: 100%;
   }
   body {
-    @apply bg-canvas text-ink antialiased;
-    font-feature-settings: 'cv11', 'ss01';
+    @apply antialiased;
+    background: var(--page);
+    color: var(--text-1);
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: 'tnum', 'cv11';
+    -webkit-font-smoothing: antialiased;
   }
   ::selection {
-    @apply bg-lime text-forest;
+    background: var(--chip-green-bg);
+    color: var(--text-1);
   }
   :focus-visible {
-    @apply outline-none ring-2 ring-lime ring-offset-2;
+    outline: none;
+    box-shadow: var(--focus);
   }
 }
 
@@ -27,13 +93,12 @@
   }
 }
 
-/* Slim, unobtrusive scrollbars */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d3ddd2;
+  background: rgba(18, 45, 32, .16);
   border-radius: 8px;
 }
 ::-webkit-scrollbar-track {

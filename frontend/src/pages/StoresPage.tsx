@@ -91,7 +91,7 @@ export function StoresPage() {
         <Button onClick={() => openForm()}><Plus className="h-4 w-4" /> Add store</Button>
       </div>
 
-      <div className="overflow-hidden rounded-card border border-line bg-white shadow-card">
+      <div className="overflow-hidden rounded-card border border-line bg-[var(--card)] shadow-card">
         {loading ? <LoadingState /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : items.length === 0 ? (
           <EmptyState title="No stores" description="Add a store to start associating products." />
         ) : (
@@ -103,12 +103,12 @@ export function StoresPage() {
               {items.map((s) => (
                 <tr key={s.id} className="hover:bg-canvas/70">
                   <td className="px-5 py-3 font-medium text-ink">{s.name}</td>
-                  <td className="px-5 py-3"><span className="rounded-full bg-lime-soft px-2 py-1 text-[11px] font-semibold text-forest">{s.code}</span></td>
+                  <td className="px-5 py-3"><span className="rounded-full bg-[var(--chip-green-bg)] px-2 py-1 text-[11px] font-semibold text-[var(--link)]">{s.code}</span></td>
                   <td className="px-5 py-3 text-subtle">{s.address || '—'}</td>
                   <td className="px-5 py-3 tabular-nums text-subtle">{s.product_count ?? 0}</td>
                   <td className="px-5 py-3 text-right">
                     <Button variant="ghost" size="icon" onClick={() => openForm(s)} title="Edit"><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => setToDelete(s)} title="Delete"><Trash2 className="h-4 w-4 text-danger" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => setToDelete(s)} title="Delete"><Trash2 className="h-4 w-4 text-[#C73E3E]" /></Button>
                   </td>
                 </tr>
               ))}

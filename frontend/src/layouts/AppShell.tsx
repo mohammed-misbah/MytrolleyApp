@@ -9,20 +9,25 @@ export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
-    <div className="min-h-screen bg-canvas text-ink">
-      <div className="flex">
-        <Sidebar
-          collapsed={collapsed}
-          mobileOpen={mobileOpen}
-          onToggleCollapse={() => setCollapsed((v) => !v)}
-          onCloseMobile={() => setMobileOpen(false)}
-        />
-        <div className="min-w-0 flex-1">
-          <Header onOpenMobile={() => setMobileOpen(true)} />
-          <main className="mx-auto max-w-[1440px] px-4 py-6 md:px-6 lg:px-8">
-            <Outlet />
-          </main>
-        </div>
+    <div className="flex min-h-screen" style={{ background: 'var(--page)' }}>
+      <Sidebar
+        collapsed={collapsed}
+        mobileOpen={mobileOpen}
+        onToggleCollapse={() => setCollapsed((v) => !v)}
+        onCloseMobile={() => setMobileOpen(false)}
+      />
+      <div
+        className="flex min-w-0 flex-1 flex-col gap-[22px] overflow-y-auto px-9 py-[30px]"
+        style={{
+          height: '100dvh',
+          scrollbarColor: 'rgba(255,255,255,.14) transparent',
+          scrollbarWidth: 'thin',
+        }}
+      >
+        <Header onOpenMobile={() => setMobileOpen(true)} />
+        <main className="flex w-full flex-1 flex-col gap-[22px]">
+          <Outlet />
+        </main>
       </div>
       <Toaster position="top-right" richColors closeButton />
     </div>

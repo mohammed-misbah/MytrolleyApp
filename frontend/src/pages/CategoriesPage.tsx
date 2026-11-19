@@ -91,7 +91,7 @@ export function CategoriesPage() {
         <Button onClick={() => openForm()}><Plus className="h-4 w-4" /> Add category</Button>
       </div>
 
-      <div className="overflow-hidden rounded-card border border-line bg-white shadow-card">
+      <div className="overflow-hidden rounded-card border border-line bg-[var(--card)] shadow-card">
         {loading ? <LoadingState /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : items.length === 0 ? (
           <EmptyState title="No categories" description="Create a category to organise products." />
         ) : (
@@ -105,10 +105,10 @@ export function CategoriesPage() {
                   <td className="px-5 py-3 font-medium text-ink">{c.name}</td>
                   <td className="px-5 py-3 text-subtle">{c.slug}</td>
                   <td className="px-5 py-3 tabular-nums text-subtle">{c.product_count ?? 0}</td>
-                  <td className="px-5 py-3"><span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${c.is_active ? 'bg-lime-soft text-forest' : 'bg-muted text-subtle'}`}>{c.is_active ? 'Active' : 'Inactive'}</span></td>
+                  <td className="px-5 py-3"><span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${c.is_active ? 'bg-[var(--chip-green-bg)] text-[var(--link)]' : 'bg-muted text-subtle'}`}>{c.is_active ? 'Active' : 'Inactive'}</span></td>
                   <td className="px-5 py-3 text-right">
                     <Button variant="ghost" size="icon" onClick={() => openForm(c)} title="Edit"><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => setToDelete(c)} title="Delete"><Trash2 className="h-4 w-4 text-danger" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => setToDelete(c)} title="Delete"><Trash2 className="h-4 w-4 text-[#C73E3E]" /></Button>
                   </td>
                 </tr>
               ))}

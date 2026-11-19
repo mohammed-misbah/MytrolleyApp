@@ -1,11 +1,21 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Boxes, CheckCircle2, Tags, Store as StoreIcon, PackageSearch, ArrowUpRight } from 'lucide-react'
+import {
+  Boxes,
+  CheckCircle2,
+  PauseCircle,
+  Tag,
+  Store as StoreIcon,
+  Plus,
+  Pencil,
+  ArrowUpRight,
+  AlertCircle,
+  RefreshCw,
+  Loader2,
+} from 'lucide-react'
 import type { ProductListItem, Store } from '@/types'
 import { catalogService } from '@/services/catalogService'
 import { toError } from '@/services/apiClient'
-import { LoadingState, ErrorState } from '@/components/ui/feedback'
-import { EmptyState } from '@/components/ui/feedback'
 import { formatDate } from '@/utils/format'
 
 interface Metrics {
@@ -16,30 +26,124 @@ interface Metrics {
   recent: ProductListItem[]
 }
 
-function MetricCard({
-  label,
-  value,
-  icon: Icon,
-  tone,
-}: {
-  label: string
-  value: number
-  icon: typeof Boxes
-  tone: 'forest' | 'lime' | 'soft' | 'outline'
-}) {
-  const tones = {
-    forest: 'bg-forest text-white',
-    lime: 'bg-lime text-forest',
-    soft: 'bg-lime-soft text-forest',
-    outline: 'bg-white text-forest border border-line',
-  }
+const iconStroke = { strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+const panel = 'rounded-[22px] p-[26px]'
+const panelStyle: React.CSSProperties = {
+  background: 'var(--card)',
+  border: '1px solid var(--line-card)',
+  boxShadow: 'var(--card-shadow)',
+}
+const heading = 'text-[16px] font-semibold text-[var(--text-1)]'
+const sub = 'mt-[3px] text-[12.5px] text-[var(--text-2)]'
+const link = 'text-[13px] font-medium text-[var(--link)] hover:brightness-110'
+const tileStyle: React.CSSProperties = {
+  background: 'var(--tile)',
+  border: '1px solid var(--line-tile)',
+}
+
+function Chip({ kind, children }: { kind: 'green' | 'warm' | 'neutral'; children: React.ReactNode }) {
+  const bg = kind === 'green' ? 'var(--chip-green-bg)' : kind === 'warm' ? 'var(--chip-warm-bg)' : 'var(--chip-neutral-bg)'
+  const color =
+    kind === 'green' ? 'var(--chip-green-icon)' : kind === 'warm' ? 'var(--chip-warm-icon)' : 'var(--chip-neutral-icon)'
   return (
-    <div className="rounded-card border border-line bg-white p-5 shadow-card transition-shadow hover:shadow-float">
-      <div className={`mb-4 inline-flex rounded-control p-2 ${tones[tone]}`}>
-        <Icon className="h-5 w-5" />
+    <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[11px]" style={{ background: bg, color }}>
+      {children}
+    </span>
+  )
+}
+
+function MiniTile({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
+  return (
+    <div className="flex items-center gap-3 rounded-[14px] px-[14px] py-[13px]" style={tileStyle}>
+      <Chip kind="green">{icon}</Chip>
+      <div className="min-w-0">
+        <p className="text-[11.5px] text-[var(--text-2)]">{label}</p>
+        <p className="text-[20px] font-bold leading-tight text-[var(--text-1)]">{value}</p>
       </div>
-      <p className="text-3xl font-semibold tabular-nums text-ink">{value}</p>
-      <p className="mt-1 text-xs font-medium uppercase tracking-wide text-subtle">{label}</p>
+    </div>
+  )
+}
+
+function AreaChart({ products, total }: { products: ProductListItem[]; total: number }) {
+  const days = 30
+  const perDay = Array.from({ length: days }, () => 0)
+  const now = Date.now()
+  products.forEach((product) => {
+    const time = new Date(product.created_at).getTime()
+    const index = Math.floor((now - time) / 86_400_000)
+    if (index >= 0 && index < days) perDay[days - 1 - index] += 1
+  })
+  const baseline = Math.max(0, total - perDay.reduce((sum, count) => sum + count, 0))
+  let running = baseline
+  const values = perDay.map((count) => {
+    running += count
+    return running
+  })
+
+  const pad = 24
+  const width = 520
+  const height = 240
+  const max = Math.max(1, ...values) * 1.25
+  const innerW = width - pad * 2
+  const innerH = height - pad * 2
+  const points = values.map((value, index) => ({
+    x: pad + (index / (days - 1)) * innerW,
+    y: pad + innerH - (value / max) * innerH,
+  }))
+
+  const line = points.reduce((acc, point, index) => {
+    if (index === 0) return `M ${point.x} ${point.y}`
+    const previous = points[index - 1]
+    const cx = (previous.x + point.x) / 2
+    return `${acc} C ${cx} ${previous.y}, ${cx} ${point.y}, ${point.x} ${point.y}`
+  }, '')
+  const area = `${line} L ${points[points.length - 1].x} ${height - pad} L ${pad} ${height - pad} Z`
+  const last = points[points.length - 1]
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="h-full min-h-[240px] w-full" aria-hidden>
+      <defs>
+        <linearGradient id="mt-area" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#2FBF8B" stopOpacity="0.28" />
+          <stop offset="100%" stopColor="#2FBF8B" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {[0, 1, 2, 3].map((row) => {
+        const y = pad + row * (innerH / 3)
+        return (
+          <line key={row} x1={pad} x2={width - pad} y1={y} y2={y} stroke="rgba(18,45,32,.12)" strokeWidth="1" strokeDasharray="2 6" vectorEffect="non-scaling-stroke" />
+        )
+      })}
+      <path d={area} fill="url(#mt-area)" />
+      <path
+        d={line}
+        fill="none"
+        stroke="var(--chart-line)"
+        strokeWidth="2.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
+      <circle cx={last.x} cy={last.y} r="12" fill="rgba(31,168,120,.18)" />
+      <circle cx={last.x} cy={last.y} r="6" fill="var(--chart-line)" />
+    </svg>
+  )
+}
+
+function PipelineTile({ kind, icon, value, label, helper }: { kind: 'warm' | 'green' | 'neutral'; icon: React.ReactNode; value: number; label: string; helper: string }) {
+  return (
+    <div
+      className="flex min-h-[178px] flex-col rounded-[16px] p-[18px]"
+      style={
+        kind === 'warm'
+          ? { background: 'var(--warm-tile)', border: '1px solid var(--warm-border)' }
+          : tileStyle
+      }
+    >
+      <Chip kind={kind}>{icon}</Chip>
+      <p className="mt-auto text-[40px] font-bold leading-none tracking-[-1px] text-[var(--text-1)]">{value}</p>
+      <p className="mt-1 text-[14px] font-semibold text-[var(--text-1)]">{label}</p>
+      <p className="mt-[3px] text-[12px] text-[var(--text-2)]">{helper}</p>
     </div>
   )
 }
@@ -93,114 +197,280 @@ export function DashboardPage() {
       .catch(() => setAvailability(0))
   }, [selectedStore])
 
-  if (loading) return <LoadingState label="Loading dashboard…" />
-  if (error) return <ErrorState message={error} onRetry={() => void load()} />
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-10 text-[14px] text-[var(--text-2)]">
+        <Loader2 className="h-4 w-4 animate-spin" {...iconStroke} /> Loading dashboard…
+      </div>
+    )
+  }
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+        <AlertCircle className="h-6 w-6" style={{ color: 'var(--warm)' }} {...iconStroke} />
+        <p className="text-[14px] font-medium text-[var(--text-1)]">{error}</p>
+        <button onClick={() => void load()} className="flex items-center gap-2 rounded-[14px] border border-[var(--line-card)] bg-white px-4 py-2 text-[14px] text-[var(--text-1)]">
+          <RefreshCw className="h-3.5 w-3.5" {...iconStroke} /> Retry
+        </button>
+      </div>
+    )
+  }
+
+  const total = metrics?.total ?? 0
+  const active = metrics?.active ?? 0
+  const inactive = Math.max(0, total - active)
+  const categories = metrics?.categories ?? 0
+  const storeCount = metrics?.stores ?? 0
+  const recent = metrics?.recent ?? []
+
+  const activity = recent.slice(0, 4).map((product) => {
+    if (product.updated_at && product.updated_at !== product.created_at) {
+      return { id: product.id, title: 'Product updated', name: product.name, time: formatDate(product.updated_at), icon: Pencil }
+    }
+    if (!product.is_active) {
+      return { id: product.id, title: 'Marked inactive', name: product.name, time: formatDate(product.created_at), icon: PauseCircle }
+    }
+    return { id: product.id, title: 'Product added', name: product.name, time: formatDate(product.created_at), icon: Plus }
+  })
 
   return (
-    <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-card bg-forest px-6 py-8 text-white shadow-card md:px-10 md:py-10">
-        <div className="absolute -right-10 -top-16 h-56 w-56 rounded-full bg-lime/10 blur-2xl" />
-        <div className="relative flex flex-col justify-between gap-6 md:flex-row md:items-end">
-          <div>
-            <span className="inline-block rounded-full bg-lime px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-forest">
-              MY Trolley workspace
-            </span>
-            <h2 className="mt-4 max-w-xl text-2xl font-semibold leading-tight md:text-3xl">
-              Everything you need to manage your catalogue.
-            </h2>
-            <p className="mt-2 max-w-lg text-sm text-white/70">
-              Monitor products, categories and store inventory from one place.
-            </p>
-          </div>
-          <Link
-            to="/products"
-            className="inline-flex items-center gap-2 self-start rounded-control bg-white px-4 py-2.5 text-sm font-semibold text-forest transition-colors hover:bg-lime-soft"
-          >
-            Manage products <ArrowUpRight className="h-4 w-4" />
-          </Link>
-        </div>
-      </section>
-
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <MetricCard label="Total products" value={metrics?.total ?? 0} icon={Boxes} tone="forest" />
-        <MetricCard label="Active products" value={metrics?.active ?? 0} icon={CheckCircle2} tone="lime" />
-        <MetricCard label="Categories" value={metrics?.categories ?? 0} icon={Tags} tone="soft" />
-        <MetricCard label="Stores" value={metrics?.stores ?? 0} icon={StoreIcon} tone="outline" />
-      </section>
-
-      <section className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
-        <div className="rounded-card border border-line bg-white p-5 shadow-card">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-ink">Recent products</h3>
-              <p className="text-xs text-subtle">Newest additions from the catalogue</p>
+    <div className="flex flex-col gap-[22px]">
+      <div className="grid grid-cols-1 gap-[22px] min-[1280px]:grid-cols-[1.9fr_1.35fr]">
+        <section className={`${panel} min-h-[330px] min-[1280px]:grid min-[1280px]:grid-cols-[260px_1fr] min-[1280px]:gap-5`} style={panelStyle}>
+          <div className="flex flex-col">
+            <h3 className={heading}>Catalogue summary</h3>
+            <p className={sub}>Total across all stores</p>
+            <p className="mt-[14px] text-[46px] font-bold leading-none tracking-[-1.2px] text-[var(--text-1)]">{total}</p>
+            <p className="mt-2 text-[12.5px] text-[var(--text-2)]">{active} active products</p>
+            <div className="mt-auto flex flex-col gap-3 pt-[14px]">
+              <MiniTile icon={<Tag className="h-[18px] w-[18px]" {...iconStroke} />} label="Categories" value={categories} />
+              <MiniTile icon={<StoreIcon className="h-[18px] w-[18px]" {...iconStroke} />} label="Stores" value={storeCount} />
             </div>
-            <Link to="/products" className="text-xs font-medium text-forest hover:underline">
-              View all
+          </div>
+          <div className="mt-6 min-h-[240px] min-[1280px]:mt-0">
+            <AreaChart products={recent} total={total} />
+          </div>
+        </section>
+
+        <section className={panel} style={panelStyle}>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className={heading}>Product pipeline</h3>
+              <p className={sub}>Status of products across the catalogue</p>
+            </div>
+            <Link to="/products" className={`${link} flex shrink-0 items-center gap-1`}>
+              View products <ArrowUpRight className="h-[15px] w-[15px]" {...iconStroke} />
             </Link>
           </div>
-          {metrics?.recent.length ? (
-            <div className="divide-y divide-line">
-              {metrics.recent.map((product) => (
-                <div key={product.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-control bg-muted">
-                    {product.primary_image?.image_url ? (
-                      <img src={product.primary_image.image_url} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <PackageSearch className="h-4 w-4 text-subtle" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-ink">{product.name}</p>
-                    <p className="truncate text-xs text-subtle">{product.category} · {formatDate(product.created_at)}</p>
-                  </div>
-                  <span
-                    className={`rounded-full px-2 py-1 text-[11px] font-medium ${
-                      product.is_active ? 'bg-lime-soft text-forest' : 'bg-muted text-subtle'
-                    }`}
-                  >
-                    {product.is_active ? 'Active' : 'Inactive'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <EmptyState title="No products yet" description="Create your first product to see it here." />
-          )}
-        </div>
+          <div className="mt-[22px] grid grid-cols-1 gap-[14px] sm:grid-cols-3">
+            <PipelineTile kind="warm" icon={<Boxes className="h-[18px] w-[18px]" {...iconStroke} />} value={total} label="Total" helper="Products in catalogue" />
+            <PipelineTile kind="green" icon={<CheckCircle2 className="h-[18px] w-[18px]" {...iconStroke} />} value={active} label="Active" helper="Live on stores" />
+            <PipelineTile kind="neutral" icon={<PauseCircle className="h-[18px] w-[18px]" {...iconStroke} />} value={inactive} label="Inactive" helper="Hidden from stores" />
+          </div>
+        </section>
+      </div>
 
-        <div className="rounded-card bg-forest-deep p-5 text-white shadow-card">
-          <h3 className="text-sm font-semibold">Store inventory</h3>
-          <p className="mt-1 text-xs text-white/60">Available products by store</p>
-          <div className="mt-5 space-y-4">
-            <label className="block">
-              <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-white/60">
-                Select store
-              </span>
+      <section className={panel} style={panelStyle}>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h3 className={heading}>Store availability</h3>
+            <p className={sub}>Available products by store</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex h-[46px] items-center gap-2 rounded-[14px] border border-[var(--line-input)] bg-white px-4">
+              <span className="text-[13.5px] text-[var(--text-2)]">Select store</span>
               <select
                 value={selectedStore}
                 onChange={(e) => setSelectedStore(e.target.value ? Number(e.target.value) : '')}
-                className="w-full rounded-control border border-white/15 bg-white/10 px-3 py-2 text-sm text-white focus:border-lime focus:outline-none"
+                className="max-w-[180px] bg-transparent text-[13.5px] text-[var(--text-1)] outline-none"
               >
-                <option value="">Choose a store…</option>
+                <option value="">All stores</option>
                 {stores.map((store) => (
-                  <option key={store.id} value={store.id} className="text-ink">
+                  <option key={store.id} value={store.id}>
                     {store.name} ({store.code})
                   </option>
                 ))}
               </select>
+              <Chevron />
             </label>
-            {selectedStore !== '' ? (
-              <div className="rounded-card bg-white/5 p-4">
-                <p className="text-3xl font-semibold tabular-nums text-lime">{availability}</p>
-                <p className="mt-1 text-xs text-white/60">products available in this store</p>
-              </div>
-            ) : (
-              <p className="text-xs text-white/50">Choose a store to see its availability count.</p>
-            )}
+            <Link to="/stores" className={`${link} flex items-center gap-1`}>
+              View stores <ArrowUpRight className="h-[15px] w-[15px]" {...iconStroke} />
+            </Link>
           </div>
         </div>
+        {selectedStore !== '' && (
+          <p className="mt-3 text-[12.5px] text-[var(--text-2)]">{availability} products available in the selected store</p>
+        )}
+        <div className="mt-5 grid grid-cols-1 gap-[18px] md:grid-cols-2 min-[1280px]:grid-cols-3">
+          {stores.slice(0, 3).map((store, index) => {
+            const warm = index % 3 === 2
+            return (
+              <div key={store.id} className="flex items-center gap-[18px] rounded-[18px] p-[18px]" style={tileStyle}>
+                <div
+                  className="flex h-[96px] w-[96px] shrink-0 items-center justify-center rounded-[16px]"
+                  style={
+                    warm
+                      ? { background: 'linear-gradient(145deg,#F6D9AE,#EDBE82)', boxShadow: '0 10px 22px rgba(200,130,40,.22)' }
+                      : { background: 'var(--brand-dark)', border: '1px solid rgba(63,217,162,.22)', boxShadow: '0 10px 22px rgba(10,31,21,.25)' }
+                  }
+                >
+                  <StoreIcon className="h-[42px] w-[42px]" style={{ color: warm ? '#8A4F0B' : '#3FD9A2' }} strokeWidth={1.4} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[15px] font-bold text-[var(--text-1)]">{store.name}</p>
+                  <div className="my-[10px] flex flex-wrap gap-7">
+                    <div>
+                      <p className="text-[11.5px] text-[var(--text-2)]">Available</p>
+                      <p className="text-[22px] font-bold text-[var(--text-1)]">{store.product_count ?? 0}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11.5px] text-[var(--text-2)]">Low stock</p>
+                      <p className="text-[22px] font-bold text-[var(--warm)]">—</p>
+                    </div>
+                  </div>
+                  <button type="button" className="rounded-[10px] border border-[rgba(18,45,32,.14)] bg-white px-[22px] py-2 text-[13px] text-[var(--text-1)] hover:bg-[var(--tile)]">
+                    Review
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </section>
+
+      <div className="grid grid-cols-1 gap-[22px] min-[1280px]:grid-cols-[1.7fr_1fr]">
+        <section className={panel} style={panelStyle}>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h3 className={heading}>Recent products</h3>
+              <p className={sub}>Newest additions from the catalogue</p>
+            </div>
+            <Link to="/products" className={`${link} flex items-center gap-1`}>
+              View all <ArrowUpRight className="h-[15px] w-[15px]" {...iconStroke} />
+            </Link>
+          </div>
+          <div className="mb-[6px] mt-[18px] inline-flex gap-[6px] rounded-[13px] border border-[var(--line-card)] bg-[#F2F5F3] p-1">
+            {[
+              { label: 'All', count: total, active: true },
+              { label: 'Active', count: active, active: false },
+              { label: 'Inactive', count: inactive, active: false },
+            ].map((tab) => (
+              <span
+                key={tab.label}
+                className="flex items-center rounded-[10px] px-4 py-[7px] text-[12.5px]"
+                style={tab.active ? { background: 'var(--brand-dark)', color: '#FFFFFF' } : { color: 'var(--text-2)' }}
+              >
+                {tab.label}
+                <span
+                  className="ml-[6px] rounded-full px-[7px] py-[2px] text-[11px]"
+                  style={tab.active ? { background: 'rgba(255,255,255,.18)' } : { background: 'rgba(18,45,32,.08)' }}
+                >
+                  {tab.count}
+                </span>
+              </span>
+            ))}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr>
+                  {['Product', 'Category', 'Added', 'Status'].map((label) => (
+                    <th key={label} className={`px-[10px] py-3 text-[11px] font-medium uppercase tracking-[.08em] text-[var(--text-3)] ${label === 'Product' ? 'w-[44%]' : ''}`}>
+                      {label}
+                    </th>
+                  ))}
+                  <th className="px-[10px] py-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {recent.slice(0, 3).map((product) => (
+                  <tr key={product.id} className="h-[66px] border-t hover:bg-[var(--tile)]" style={{ borderColor: 'var(--line-row)' }}>
+                    <td className="px-[10px]">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[11px] text-[var(--chip-neutral-icon)]" style={{ background: 'var(--chip-neutral-bg)' }}>
+                          <Boxes className="h-[18px] w-[18px]" {...iconStroke} />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-[14px] font-medium text-[var(--text-1)]">{product.name}</span>
+                          <span className="block text-[11.5px] text-[var(--text-3)]">Product record</span>
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-[10px] text-[14px] text-[var(--text-2)]">{product.category}</td>
+                    <td className="px-[10px] text-[14px] text-[var(--text-2)]">{formatDate(product.created_at)}</td>
+                    <td className="px-[10px]">
+                      <span
+                        className="inline-flex h-[26px] items-center gap-[7px] rounded-full px-3 text-[12px] font-medium"
+                        style={
+                          product.is_active
+                            ? { color: 'var(--link)', background: 'var(--positive-bg)' }
+                            : { color: 'var(--text-2)', background: '#ECEFED' }
+                        }
+                      >
+                        <span className="h-[6px] w-[6px] rounded-full bg-current" />
+                        {product.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-[10px] text-[16px] font-bold tracking-[2px] text-[var(--text-3)]">•••</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {recent.length === 0 && <p className="py-8 text-center text-[13px] text-[var(--text-2)]">No products yet</p>}
+          </div>
+        </section>
+
+        <section className={panel} style={panelStyle}>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h3 className={heading}>Recent activity</h3>
+              <p className={sub}>Latest changes in your catalogue</p>
+            </div>
+            <Link to="/products" className={`${link} flex items-center gap-1`}>
+              View all <ArrowUpRight className="h-[15px] w-[15px]" {...iconStroke} />
+            </Link>
+          </div>
+          <div className="mt-3">
+            {activity.map((item, index) => {
+              const Icon = item.icon
+              const neutral = item.title === 'Marked inactive'
+              return (
+                <div
+                  key={`${item.id}-${index}`}
+                  className={`flex items-center gap-[14px] py-[15px] ${index === activity.length - 1 ? '' : 'border-b'}`}
+                  style={index === activity.length - 1 ? undefined : { borderColor: 'var(--line-row)' }}
+                >
+                  <span
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+                    style={
+                      neutral
+                        ? { background: 'var(--chip-neutral-bg)', color: 'var(--chip-neutral-icon)' }
+                        : item.title === 'Product added'
+                          ? { background: 'var(--chip-green-bg)', color: 'var(--chip-green-icon)' }
+                          : { background: 'var(--chip-warm-bg)', color: 'var(--chip-warm-icon)' }
+                    }
+                  >
+                    <Icon className="h-[18px] w-[18px]" {...iconStroke} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[14px] font-semibold text-[var(--text-1)]">{item.title}</span>
+                    <span className="block truncate text-[12.5px] text-[var(--text-2)]">{item.name}</span>
+                  </span>
+                  <span className="shrink-0 whitespace-nowrap text-[11.5px] text-[var(--text-3)]">{item.time}</span>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      </div>
     </div>
+  )
+}
+
+function Chevron() {
+  return (
+    <svg className="h-[15px] w-[15px] shrink-0 text-[var(--text-2)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="m6 9 6 6 6-6" />
+    </svg>
   )
 }

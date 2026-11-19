@@ -141,7 +141,7 @@ export function ProductsPage() {
         </Link>
       </div>
 
-      <div className="rounded-card border border-line bg-white p-4 shadow-card">
+      <div className="rounded-card border border-line bg-[var(--card)] p-4 shadow-card">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div className="relative sm:col-span-2 lg:col-span-1">
             <Input
@@ -272,12 +272,12 @@ export function ProductsPage() {
             <p className="w-full text-[11px] text-subtle">Select a store to filter products by price.</p>
           )}
           {priceError && (
-            <p className="w-full text-xs font-medium text-danger">{priceError}</p>
+            <p className="w-full text-xs font-medium text-[#C73E3E]">{priceError}</p>
           )}
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-card border border-line bg-white shadow-card">
+      <div className="overflow-hidden rounded-card border border-line bg-[var(--card)] shadow-card">
         {loading ? (
           <LoadingState label="Loading products…" />
         ) : error ? (
@@ -329,7 +329,7 @@ export function ProductsPage() {
                       <td className="px-4 py-3">
                         <span
                           className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
-                            product.is_active ? 'bg-lime-soft text-forest' : 'bg-muted text-subtle'
+                            product.is_active ? 'bg-[var(--chip-green-bg)] text-[var(--link)]' : 'bg-muted text-subtle'
                           }`}
                         >
                           {product.is_active ? 'Active' : 'Inactive'}
@@ -344,7 +344,7 @@ export function ProductsPage() {
                             <Button variant="ghost" size="icon" title="Edit"><Pencil className="h-4 w-4" /></Button>
                           </Link>
                           <Button variant="ghost" size="icon" title="Delete" onClick={() => setToDelete(product)}>
-                            <Trash2 className="h-4 w-4 text-danger" />
+                            <Trash2 className="h-4 w-4 text-[#C73E3E]" />
                           </Button>
                         </div>
                       </td>
@@ -369,7 +369,7 @@ export function ProductsPage() {
                       <p className="truncate font-medium text-ink">{product.name}</p>
                       <p className="text-xs text-subtle">{product.category}</p>
                     </div>
-                    <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${product.is_active ? 'bg-lime-soft text-forest' : 'bg-muted text-subtle'}`}>
+                    <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${product.is_active ? 'bg-[var(--chip-green-bg)] text-[var(--link)]' : 'bg-muted text-subtle'}`}>
                       {product.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </div>

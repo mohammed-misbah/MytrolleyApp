@@ -97,7 +97,7 @@ export function AttributesPage() {
         <h2 className="text-xl font-semibold text-ink">Product attributes</h2>
         <p className="text-sm text-subtle">Manage flexible details such as brand, size, colour and weight.</p>
       </div>
-      <div className="rounded-card border border-line bg-white p-5 shadow-card">
+      <div className="rounded-card border border-line bg-[var(--card)] p-5 shadow-card">
         <Field label="Select product">
           <Select value={selected} onChange={(e) => setSelected(e.target.value ? Number(e.target.value) : '')}>
             <option value="">Choose a product…</option>
@@ -106,7 +106,7 @@ export function AttributesPage() {
         </Field>
       </div>
 
-      <div className="overflow-hidden rounded-card border border-line bg-white shadow-card">
+      <div className="overflow-hidden rounded-card border border-line bg-[var(--card)] shadow-card">
         {selected === '' ? (
           <EmptyState title="Select a product" description="Attributes are managed per product." />
         ) : loading ? (
@@ -125,7 +125,7 @@ export function AttributesPage() {
                   <td className="px-5 py-3 text-subtle">{a.value}</td>
                   <td className="px-5 py-3 text-right">
                     <Button variant="ghost" size="icon" onClick={() => openForm(a)}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => setToDelete(a.id)}><Trash2 className="h-4 w-4 text-danger" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => setToDelete(a.id)}><Trash2 className="h-4 w-4 text-[#C73E3E]" /></Button>
                   </td>
                 </tr>
               ))}

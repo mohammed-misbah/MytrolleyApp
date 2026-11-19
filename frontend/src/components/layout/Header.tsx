@@ -1,6 +1,15 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { ChevronDown, LogOut, Menu, UserRound } from 'lucide-react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import {
+  Search,
+  Bell,
+  CalendarDays,
+  ChevronDown,
+  Menu,
+  UserRound,
+  LogOut,
+  ArrowUpRight,
+} from 'lucide-react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 
 const titles: Record<string, string> = {
@@ -12,66 +21,105 @@ const titles: Record<string, string> = {
   '/account': 'My Account',
 }
 
+const glass: React.CSSProperties = {
+  background: 'var(--card)',
+  border: '1px solid var(--line-input)',
+  boxShadow: 'var(--header-shadow)',
+}
+
 export function Header({ onOpenMobile }: { onOpenMobile: () => void }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-line bg-white/95 px-4 backdrop-blur md:px-6">
-      <div className="flex items-center gap-3">
+    <header className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+      <div className="flex min-w-0 items-center gap-3">
         <button
           onClick={onOpenMobile}
           aria-label="Open navigation"
-          className="rounded-control p-2 text-subtle hover:bg-muted lg:hidden"
+          className="flex h-[46px] w-[46px] items-center justify-center rounded-[14px] text-[var(--text-2)] md:hidden"
+          style={glass}
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-[18px] w-[18px]" strokeWidth={1.8} />
         </button>
-        <div>
-          <h1 className="text-base font-semibold text-ink md:text-lg">
+        <div className="min-w-0">
+          <h1
+            className="truncate text-[26px] font-[650] leading-[1.1] text-[var(--page-title)]"
+            style={{ letterSpacing: '-.3px' }}
+          >
             {titles[pathname] ?? (pathname.startsWith('/products/') ? 'Product details' : 'MY Trolley')}
           </h1>
-          <p className="hidden text-xs text-subtle sm:block">Product management administration</p>
+          <p className="mt-[5px] truncate text-[14px] text-[var(--text-2)]">
+            Product management administration
+          </p>
         </div>
       </div>
 
-      <DropdownMenu.Root>
-        <DropdownMenu.Trigger asChild>
-          <button
-            className="flex items-center gap-2 rounded-control px-2 py-1.5 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime"
-            aria-label="Account menu"
-          >
-            <span className="hidden text-sm font-medium text-ink sm:inline">
-              {user?.full_name || user?.username || 'Account'}
-            </span>
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-forest text-sm font-semibold text-white">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex h-[46px] w-[360px] items-center gap-[10px] rounded-[14px] px-4" style={glass}>
+          <Search className="h-[18px] w-[18px] shrink-0 text-[var(--text-3)]" strokeWidth={1.8} />
+          <input
+            type="search"
+            placeholder="Search products, categories..."
+            className="h-full w-full min-w-0 bg-transparent text-[13.5px] text-[var(--text-1)] outline-none placeholder:text-[var(--text-3)]"
+          />
+        </div>
+
+        <div className="relative flex h-[46px] w-[46px] items-center justify-center rounded-[14px]" style={glass}>
+          <Bell className="h-[18px] w-[18px] text-[var(--text-2)]" strokeWidth={1.8} />
+          <span aria-hidden className="absolute right-[12px] top-[11px] h-2 w-2 rounded-full bg-[var(--bell-dot)]" />
+        </div>
+
+        <div className="flex h-[46px] items-center gap-[10px] rounded-[14px] px-4" style={glass}>
+          <CalendarDays className="h-4 w-4 text-[var(--text-2)]" strokeWidth={1.8} />
+          <span className="whitespace-nowrap text-[13.5px] text-[var(--text-1)]">Last 30 days</span>
+          <ChevronDown className="h-[15px] w-[15px] text-[var(--text-2)]" strokeWidth={1.8} />
+        </div>
+
+        <Link
+          to="/products"
+          className="flex h-[46px] items-center gap-[9px] rounded-[14px] px-5 text-[14px] font-[650] text-white transition-[filter] hover:brightness-110"
+          style={{ background: 'var(--brand-dark)', boxShadow: 'var(--brand-dark-shadow)' }}
+        >
+          Manage products
+          <ArrowUpRight className="h-[17px] w-[17px]" strokeWidth={1.8} />
+        </Link>
+
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger asChild>
+            <button
+              aria-label="Account menu"
+              className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full font-bold text-[#06140D]"
+              style={{ background: 'linear-gradient(145deg,#2FBF8B,#1B8F68)' }}
+            >
               {(user?.first_name || user?.username || 'A').slice(0, 1).toUpperCase()}
-            </span>
-            <ChevronDown className="hidden h-3.5 w-3.5 text-subtle sm:block" />
-          </button>
-        </DropdownMenu.Trigger>
-        <DropdownMenu.Portal>
-          <DropdownMenu.Content
-            align="end"
-            sideOffset={8}
-            className="z-50 w-52 rounded-card border border-line bg-white p-1.5 shadow-float"
-          >
-            <DropdownMenu.Item
-              onSelect={() => navigate('/account')}
-              className="flex cursor-pointer items-center gap-2 rounded-control px-3 py-2 text-sm text-ink outline-none data-[highlighted]:bg-lime-soft"
+            </button>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content
+              align="end"
+              sideOffset={8}
+              className="z-50 w-52 rounded-[16px] p-1.5 shadow-panel"
+              style={{ background: 'var(--card)', border: '1px solid var(--line-card)' }}
             >
-              <UserRound className="h-4 w-4 text-forest" /> My Account
-            </DropdownMenu.Item>
-            <DropdownMenu.Separator className="my-1 h-px bg-line" />
-            <DropdownMenu.Item
-              onSelect={() => void signOut()}
-              className="flex cursor-pointer items-center gap-2 rounded-control px-3 py-2 text-sm text-danger outline-none data-[highlighted]:bg-danger/10"
-            >
-              <LogOut className="h-4 w-4" /> Logout
-            </DropdownMenu.Item>
-          </DropdownMenu.Content>
-        </DropdownMenu.Portal>
-      </DropdownMenu.Root>
+              <DropdownMenu.Item
+                onSelect={() => navigate('/account')}
+                className="flex cursor-pointer items-center gap-2 rounded-[10px] px-3 py-2 text-[14px] text-[var(--text-1)] outline-none data-[highlighted]:bg-[var(--tile)]"
+              >
+                <UserRound className="h-[18px] w-[18px] text-[var(--link)]" strokeWidth={1.8} /> My Account
+              </DropdownMenu.Item>
+              <DropdownMenu.Separator className="my-1 h-px" style={{ background: 'var(--line-row)' }} />
+              <DropdownMenu.Item
+                onSelect={() => void signOut()}
+                className="flex cursor-pointer items-center gap-2 rounded-[10px] px-3 py-2 text-[14px] text-[var(--warm)] outline-none data-[highlighted]:bg-[var(--tile)]"
+              >
+                <LogOut className="h-[18px] w-[18px]" strokeWidth={1.8} /> Logout
+              </DropdownMenu.Item>
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+      </div>
     </header>
   )
 }
