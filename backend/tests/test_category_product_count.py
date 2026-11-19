@@ -84,8 +84,8 @@ def test_deactivation_and_reactivation_do_not_change_count(
 
 
 @pytest.mark.django_db
-def test_delete_endpoint_deactivation_keeps_count(client: Client, headers, categories) -> None:
-    """The API delete endpoint deactivates a product; it remains in the category."""
+def test_delete_endpoint_excludes_product_from_count(client: Client, headers, categories) -> None:
+    """Soft deletion removes a product from category counts but keeps its row."""
     category = categories[0]
     created = post_json(
         client,
@@ -94,11 +94,12 @@ def test_delete_endpoint_deactivation_keeps_count(client: Client, headers, categ
         **headers,
     ).json()
 
+    assert count_for(client, headers, category.id) == 1
     response = client.delete(f"/api/v1/products/{created['id']}/", **headers)
     assert response.status_code == 204
-    product = Product.objects.get(pk=created["id"])
-    assert product.is_active is False
-    assert count_for(client, headers, category.id) == 1
+    deleted = Product.all_objects.get(pk=created["id"])
+    assert deleted.deleted_at is not None
+    assert count_for(client, headers, category.id) == 0
 
 
 @pytest.mark.django_db

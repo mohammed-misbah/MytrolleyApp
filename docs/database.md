@@ -44,6 +44,7 @@ erDiagram
         text description
         bigint category_id FK
         boolean is_active
+        timestamp deleted_at "NULL until soft-deleted"
         timestamp created_at
         timestamp updated_at
     }
@@ -143,15 +144,23 @@ erDiagram
 | description | text | |
 | category_id | bigint | FK → catalog_category(id), DEFERRABLE, PROTECT |
 | is_active | boolean | DEFAULT true |
+| deleted_at | timestamptz | NULL (set by soft deletion) |
 | created_at | timestamptz | NOT NULL |
 | updated_at | timestamptz | NOT NULL |
 
 **Indexes:**
 - `product_active_idx` (is_active)
 - `product_category_idx` (category_id, is_active)
+- Index on deleted_at (added in migration 0005)
 - Unique index on slug (the redundant `product_slug_idx` was removed in migration 0004)
 
-**Category protection:** `on_delete=PROTECT` prevents deleting a category that has products.
+**Soft deletion:** `deleted_at IS NULL` means the product is live. Deleting sets
+this timestamp; no row or related data is removed. `Product.objects` excludes
+rows with a non-null `deleted_at`, so all ordinary queries, counts and related
+managers hide them automatically. `Product.all_objects` is the unfiltered
+manager used only for uniqueness checks and referential-integrity guards.
+
+**Category protection:** `on_delete=PROTECT` prevents deleting a category that has products. The guard uses `Product.all_objects`, so soft-deleted products still protect their category.
 
 ---
 
@@ -245,9 +254,9 @@ erDiagram
 |---|---|---|---|
 | catalog_category (self) | catalog_category | PROTECT | Prevents deleting parent with children |
 | catalog_product | catalog_category | PROTECT | Prevents deleting category with products |
-| catalog_productattribute | catalog_product | CASCADE | Attributes deleted with product |
-| catalog_productimage | catalog_product | CASCADE | Images deleted with product |
-| catalog_productstore | catalog_product | CASCADE | Associations deleted with product |
+| catalog_productattribute | catalog_product | CASCADE | Attributes deleted only on a hard delete (soft deletion retains them) |
+| catalog_productimage | catalog_product | CASCADE | Images deleted only on a hard delete (soft deletion retains them) |
+| catalog_productstore | catalog_product | CASCADE | Associations deleted only on a hard delete (soft deletion retains them) |
 | catalog_productstore | catalog_store | CASCADE | Associations deleted with store |
 
 ---
@@ -260,8 +269,27 @@ erDiagram
 | 0002_alter_productstore_price | Changes price from decimal_places=2 to decimal_places=4 |
 | 0003_add_price_check_constraint | Adds CHECK constraint `price >= 0` (database-level) |
 | 0004_case_insensitive_uniqueness_and_index_cleanup | Adds case-insensitive UNIQUE constraints for category names, store codes and per-product attribute names; removes redundant `product_slug_idx`, `store_code_idx` and `product_attr_name_idx` |
+| 0005_product_soft_delete | Adds nullable `deleted_at` to `catalog_product` with an index. Existing rows keep NULL (no data rewritten); no records are deleted or merged |
 
 All migrations are applied and verified on PostgreSQL.
+
+### Product lifecycle
+
+| State | `is_active` | `deleted_at` | Admin listing | Inactive filter | Public catalogue | Editable / reactivatable |
+|---|---|---|---|---|---|---|
+| Active | true | NULL | Yes | No | Yes | Yes |
+| Inactive | false | NULL | Yes | Yes | No | Yes |
+| Deleted | unchanged | timestamp | No | No | No | No (normal endpoints return 404) |
+
+Deactivation is a status change (`PATCH {"is_active": false}`). Deletion is a
+separate operation (`DELETE /api/v1/products/{id}/`) that writes `deleted_at`
+inside a transaction and keeps `is_active` unchanged. A soft-deleted product
+is excluded from search, filters, sorting, pagination and counts. Its
+attributes, images, store associations, prices and inventory are retained;
+cloud image files are not removed. Because the row and its FK relationships
+remain, soft-deleted products still protect their category and store from
+deletion, and their unique slug remains reserved (new products with the same
+name receive a numeric slug suffix).
 
 ### Django `on_delete` vs PostgreSQL `ON DELETE`
 
@@ -271,7 +299,8 @@ with `ON DELETE NO ACTION` (DEFERRABLE INITIALLY DEFERRED), so direct SQL that
 deletes a parent with children is rejected by the database rather than cascaded.
 The API additionally checks associations before deleting a store and returns
 `409 CONFLICT` when products are attached; this application-level protection is
-preserved and was not changed by migration 0004.
+preserved. The category guard uses the unfiltered product manager so historical
+soft-deleted products keep protecting their category (migration 0005).
 
 ---
 

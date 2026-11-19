@@ -294,6 +294,45 @@ true so login can be tested anonymously. Set `API_DOCS_PUBLIC=false` in
 `backend/.env` and restart the server to require staff access locally. The admin
 path is configurable and production rejects the default `admin/` path.
 
+## Catalogue endpoints
+
+All `/api/v1/products/...` routes require a Bearer access token and the
+`accounts.manage_catalog` permission (Administrator and DataEntry). The same
+endpoints are the active catalogue source for admin and client integrations;
+there is no separate public product endpoint.
+
+### `DELETE /api/v1/products/{id}/`
+
+Performs a **soft deletion**. The product row is kept and its `deleted_at`
+timestamp is written inside a transaction. `is_active` is not changed:
+deactivation and deletion are separate operations.
+
+Success: `204 No Content` (empty body). The product and all of its attributes,
+images, store associations, prices and inventory quantities remain in the
+database; uploaded image files are not removed. From this point the product is
+excluded from every listing, search, filter (including Active and Inactive),
+sort, pagination result and count, and it no longer appears in the active
+catalogue. Its nested management endpoints return `404`. Its slug stays
+reserved, so a new product with the same name receives a numeric slug suffix.
+
+| Situation | Status | Code |
+|---|---|---|
+| Deleted successfully | 204 | — |
+| Already deleted, or never existed | 404 | `NOT_FOUND` |
+| Missing/invalid Bearer token | 401 | `UNAUTHENTICATED` / `TOKEN_INVALID` |
+| User lacks `manage_catalog` | 403 | `FORBIDDEN` |
+
+### Deactivation versus deletion
+
+| Operation | Request | Result |
+|---|---|---|
+| Deactivate | `PATCH /api/v1/products/{id}/` with `{"is_active": false}` | Product stays in the admin listing and Inactive filter, is editable and can be reactivated, but is excluded from the active catalogue |
+| Delete | `DELETE /api/v1/products/{id}/` | `deleted_at` is set; product disappears from all normal catalogue endpoints and counts; related records are retained |
+
+A deleted product cannot be reactivated through a normal status update: every
+ordinary product detail, update and nested-management endpoint returns `404`
+for it.
+
 ## Error envelope and codes
 
 Every API error has exactly this top-level shape:

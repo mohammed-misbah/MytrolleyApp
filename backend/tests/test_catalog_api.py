@@ -277,10 +277,17 @@ class TestProductAPI:
         assert response.json()["name"] == "Updated Laptop"
 
     def test_delete_product_soft(self, client: Client, administrator_token, product) -> None:
-        response = client.delete(f"/api/v1/products/{product.id}/", **auth_header(administrator_token))
+        headers = auth_header(administrator_token)
+        response = client.delete(f"/api/v1/products/{product.id}/", **headers)
         assert response.status_code == 204
-        product.refresh_from_db()
-        assert product.is_active is False
+        # The row is retained with a deletion timestamp; is_active is left
+        # untouched because deletion and deactivation are separate operations.
+        deleted = Product.all_objects.get(pk=product.id)
+        assert deleted.deleted_at is not None
+        assert deleted.is_active is True
+        # Ordinary catalogue access no longer sees the product.
+        assert client.get(f"/api/v1/products/{product.id}/", **headers).status_code == 404
+        assert client.delete(f"/api/v1/products/{product.id}/", **headers).status_code == 404
 
     def test_data_entry_can_access(self, client: Client, data_entry_token, product) -> None:
         response = client.get("/api/v1/products/", **auth_header(data_entry_token))

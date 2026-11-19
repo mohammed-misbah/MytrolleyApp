@@ -40,9 +40,9 @@ class CategorySerializer(serializers.ModelSerializer):
         return []
 
     def get_product_count(self, obj: Category) -> int:
-        # Category membership is independent of product status. Count every
-        # associated row that still exists, whether Active or Inactive; rows
-        # removed from the database are excluded by the relation itself.
+        # Membership is independent of is_active: Active and Inactive products
+        # both count. The default Product manager excludes soft-deleted rows,
+        # so deleted products no longer contribute to this count.
         return obj.products.count()
 
 
@@ -106,7 +106,11 @@ class StoreSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at", "product_count"]
 
     def get_product_count(self, obj: Store) -> int:
-        return obj.product_associations.filter(is_available=True).count()
+        # Associations are retained on soft deletion, so exclude their deleted
+        # products explicitly while preserving the existing is_available rule.
+        return obj.product_associations.filter(
+            is_available=True, product__deleted_at__isnull=True
+        ).count()
 
 
 class StoreWriteSerializer(StrictModelSerializer):

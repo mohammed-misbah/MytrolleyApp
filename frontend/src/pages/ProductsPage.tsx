@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Eye, Pencil, Trash2, ChevronLeft, ChevronRight, PackageSearch } from 'lucide-react'
 import { toast } from 'sonner'
@@ -26,6 +26,9 @@ export function ProductsPage() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [toDelete, setToDelete] = useState<ProductListItem | null>(null)
   const [deleting, setDeleting] = useState(false)
+  // Guards against a rapid double-click before React re-renders the disabled
+  // Delete button, so a single confirmation cannot issue two DELETE requests.
+  const deletingRef = useRef(false)
 
   // A single source of truth for "a real store is selected". Price inputs,
   // price sorting and price filtering all depend on this value. Using a
@@ -42,13 +45,14 @@ export function ProductsPage() {
   // Applied filters change only on Search/Enter, so invalid drafts never
   // replace previously valid results.
   const priceError = validatePriceRange(minInput, maxInput)
-  const load = useCallback(async () => {
+  const load = useCallback(async (override?: ProductFilters) => {
+    const active = override ?? filters
     // Defense in depth: invalid applied filters never reach the backend, and
     // existing results are preserved rather than replaced by an empty state.
     if (
-      validatePriceRange(filters.min_price, filters.max_price) ||
-      ((filters.ordering === 'price' || filters.ordering === '-price') && !storeSelected) ||
-      ((filters.min_price !== undefined || filters.max_price !== undefined) && !storeSelected)
+      validatePriceRange(active.min_price, active.max_price) ||
+      ((active.ordering === 'price' || active.ordering === '-price') && !storeSelected) ||
+      ((active.min_price !== undefined || active.max_price !== undefined) && !storeSelected)
     ) {
       setLoading(false)
       return
@@ -56,7 +60,7 @@ export function ProductsPage() {
     setLoading(true)
     setError(null)
     try {
-      setData(await catalogService.listProducts(filters))
+      setData(await catalogService.listProducts(active))
     } catch (err) {
       setError(toError(err).message)
     } finally {
@@ -96,16 +100,28 @@ export function ProductsPage() {
   }
 
   const confirmDelete = async () => {
-    if (!toDelete) return
+    if (!toDelete || deletingRef.current) return
+    deletingRef.current = true
     setDeleting(true)
     try {
       await catalogService.deleteProduct(toDelete.id)
-      toast.success('Product deactivated successfully.')
+      toast.success('Product deleted successfully.')
       setToDelete(null)
-      await load()
+      // Removing the last row on a page would leave an empty page; step back
+      // so the listing stays populated and pagination reflects the new count.
+      const lastOnPage = (data?.results.length ?? 0) <= 1
+      const currentPage = filters.page ?? 1
+      const stepBack = lastOnPage && currentPage > 1
+      const nextFilters = stepBack ? { ...filters, page: currentPage - 1 } : filters
+      if (stepBack) setFilters(nextFilters)
+      await load(nextFilters)
     } catch (err) {
       toast.error(toError(err).message)
+      // The product may already be gone (for example deleted in another tab):
+      // refresh so the listing and its counts match the server.
+      await load()
     } finally {
+      deletingRef.current = false
       setDeleting(false)
     }
   }
@@ -452,8 +468,9 @@ export function ProductsPage() {
       <ConfirmDialog
         open={Boolean(toDelete)}
         onOpenChange={(open) => !open && setToDelete(null)}
-        title="Deactivate product?"
-        description={`"${toDelete?.name ?? ''}" will be marked inactive. Existing records remain intact.`}
+        title="Delete product?"
+        description={`"${toDelete?.name ?? ''}" will be removed from the catalogue and will no longer appear in product listings. Existing records remain in the database.`}
+        confirmLabel="Delete"
         onConfirm={() => void confirmDelete()}
         loading={deleting}
       />

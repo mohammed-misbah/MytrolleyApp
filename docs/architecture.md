@@ -346,8 +346,12 @@ erDiagram
   database. Limit byte size and dimensions; verify magic bytes, allow only
   raster formats, strip EXIF, re-encode, scan for malware and serve through
   short-lived signed URLs. Never trust the client filename or content type.
-- **Soft deletion:** products referenced by lists/prices should be deactivated
-  rather than hard-deleted, preserving historical totals.
+- **Soft deletion:** deactivation (`is_active`) and deletion (`deleted_at`) are
+  distinct. Deletion stamps `deleted_at` on the product row inside a
+  transaction and keeps all related records and image files, preserving
+  historical totals. The default `Product` manager excludes deleted rows from
+  every query and count; `Product.all_objects` is reserved for uniqueness
+  checks and referential-integrity guards.
 - **Price history:** append `STORE_PRICE` observations; do not overwrite the
   previous price. Current price is a query over the latest observation.
 - **Shopping lists:** totals are computed server-side from current prices and

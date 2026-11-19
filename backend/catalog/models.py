@@ -8,7 +8,27 @@ from typing import Any
 
 from django.db import models
 from django.db.models.functions import Lower
+from django.utils import timezone
 from django.utils.text import slugify
+
+
+class ProductManager(models.Manager):
+    """Default manager that hides soft-deleted products everywhere.
+
+    All normal catalogue queries, related managers (e.g. ``category.products``)
+    and aggregate counts go through this manager, so a deleted product cannot
+    leak into a listing, detail view or count.
+    """
+
+    def get_queryset(self) -> models.QuerySet:
+        return super().get_queryset().filter(deleted_at__isnull=True)
+
+
+class AllProductManager(models.Manager):
+    """Unfiltered manager for uniqueness checks and integrity guards only."""
+
+    def get_queryset(self) -> models.QuerySet:
+        return super().get_queryset()
 
 
 class Category(models.Model):
@@ -103,8 +123,12 @@ class Product(models.Model):
         related_name="products",
     )
     is_active = models.BooleanField(default=True)
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = ProductManager()
+    all_objects = AllProductManager()
 
     class Meta:
         ordering = ["name"]
@@ -121,10 +145,17 @@ class Product(models.Model):
             base_slug = slugify(self.name)
             self.slug = base_slug
             counter = 1
-            while Product.objects.filter(slug=self.slug).exclude(pk=self.pk).exists():
+            # Use the unfiltered manager: a soft-deleted product still owns its
+            # unique slug, so a new product with the same name must be suffixed.
+            while Product.all_objects.filter(slug=self.slug).exclude(pk=self.pk).exists():
                 self.slug = f"{base_slug}-{counter}"
                 counter += 1
         super().save(*args, **kwargs)
+
+    def soft_delete(self) -> None:
+        """Record a deletion timestamp without removing the row or its data."""
+        self.deleted_at = timezone.now()
+        self.save(update_fields=["deleted_at", "updated_at"])
 
 
 class ProductAttribute(models.Model):

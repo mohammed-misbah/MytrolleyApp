@@ -195,7 +195,9 @@ class CategoryDetailView(APIView):
     )
     def delete(self, request: Request, pk: int) -> Response:
         category = self.get_object(pk)
-        if category.products.exists():
+        # Soft-deleted products still hold a PROTECT FK to the category, so the
+        # guard must see them even though the default manager hides them.
+        if Product.all_objects.filter(category=category).exists():
             return api_error_response(
                 request._request,
                 code="CONFLICT",
@@ -326,6 +328,8 @@ class StoreDetailView(APIView):
     )
     def delete(self, request: Request, pk: int) -> Response:
         store = self.get_object(pk)
+        # Soft deletion keeps ProductStore rows, so historical associations
+        # continue to protect the store from being deleted.
         if store.product_associations.exists():
             return api_error_response(
                 request._request,
@@ -402,6 +406,9 @@ class ProductListCreateView(APIView):
         search_serializer.is_valid(raise_exception=True)
         params = search_serializer.validated_data
 
+        # The default Product manager already excludes soft-deleted rows, so
+        # search, filters, sorting, pagination and the COUNT below all operate
+        # on live products only.
         queryset = Product.objects.select_related("category").prefetch_related(
             "images", "store_associations__store"
         )
@@ -564,7 +571,11 @@ class ProductDetailView(APIView):
     @extend_schema(
         tags=["Products"],
         summary="Delete product",
-        description="Delete a product. Sets is_active to false instead of hard delete.",
+        description=(
+            "Soft-delete a product. The row and all related records are retained, "
+            "but the product is excluded from every catalogue listing and endpoint. "
+            "Use PATCH with is_active to deactivate without deleting."
+        ),
         responses={
             204: None,
             401: ErrorEnvelopeSerializer,
@@ -573,9 +584,11 @@ class ProductDetailView(APIView):
         },
     )
     def delete(self, request: Request, pk: int) -> Response:
+        # get_object() uses the default Product manager, which excludes
+        # soft-deleted rows, so deleting twice returns 404.
         product = self.get_object(pk)
-        product.is_active = False
-        product.save(update_fields=["is_active", "updated_at"])
+        with transaction.atomic():
+            product.soft_delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
