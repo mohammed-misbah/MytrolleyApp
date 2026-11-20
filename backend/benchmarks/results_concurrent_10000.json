@@ -1,0 +1,174 @@
+{
+  "label": "concurrent",
+  "products": 10000,
+  "endpoints": {
+    "dashboard_summary": [
+      {
+        "users": 1,
+        "requests": 100,
+        "rps": 3.43,
+        "median_ms": 284.3,
+        "p95_ms": 373.4,
+        "max_ms": 379.05,
+        "errors": 0,
+        "error_rate": 0.0
+      },
+      {
+        "users": 5,
+        "requests": 100,
+        "rps": 7.46,
+        "median_ms": 589.93,
+        "p95_ms": 1041.16,
+        "max_ms": 1318.99,
+        "errors": 0,
+        "error_rate": 0.0
+      },
+      {
+        "users": 10,
+        "requests": 100,
+        "rps": 9.8,
+        "median_ms": 736.92,
+        "p95_ms": 1571.41,
+        "max_ms": 2384.2,
+        "errors": 0,
+        "error_rate": 0.0
+      },
+      {
+        "users": 20,
+        "requests": 100,
+        "rps": 9.91,
+        "median_ms": 1533.35,
+        "p95_ms": 3357.82,
+        "max_ms": 4583.9,
+        "errors": 0,
+        "error_rate": 0.0
+      }
+    ],
+    "product_list": [
+      {
+        "users": 1,
+        "requests": 100,
+        "rps": 4.0,
+        "median_ms": 241.66,
+        "p95_ms": 355.24,
+        "max_ms": 401.1,
+        "errors": 0,
+        "error_rate": 0.0
+      },
+      {
+        "users": 5,
+        "requests": 100,
+        "rps": 10.52,
+        "median_ms": 443.59,
+        "p95_ms": 622.8,
+        "max_ms": 660.26,
+        "errors": 0,
+        "error_rate": 0.0
+      },
+      {
+        "users": 10,
+        "requests": 100,
+        "rps": 6.18,
+        "median_ms": 1500.85,
+        "p95_ms": 2911.02,
+        "max_ms": 3293.27,
+        "errors": 0,
+        "error_rate": 0.0
+      },
+      {
+        "users": 20,
+        "requests": 100,
+        "rps": 8.95,
+        "median_ms": 1474.32,
+        "p95_ms": 4439.74,
+        "max_ms": 5495.6,
+        "errors": 0,
+        "error_rate": 0.0
+      }
+    ],
+    "product_detail": [
+      {
+        "users": 1,
+        "requests": 100,
+        "rps": 4.64,
+        "median_ms": 203.02,
+        "p95_ms": 293.25,
+        "max_ms": 358.54,
+        "errors": 0,
+        "error_rate": 0.0
+      },
+      {
+        "users": 5,
+        "requests": 100,
+        "rps": 14.25,
+        "median_ms": 342.05,
+        "p95_ms": 430.99,
+        "max_ms": 474.67,
+        "errors": 0,
+        "error_rate": 0.0
+      },
+      {
+        "users": 10,
+        "requests": 100,
+        "rps": 14.81,
+        "median_ms": 513.71,
+        "p95_ms": 1040.47,
+        "max_ms": 1140.13,
+        "errors": 0,
+        "error_rate": 0.0
+      },
+      {
+        "users": 20,
+        "requests": 100,
+        "rps": 15.09,
+        "median_ms": 963.57,
+        "p95_ms": 1960.87,
+        "max_ms": 2455.66,
+        "errors": 0,
+        "error_rate": 0.0
+      }
+    ],
+    "public_product_list": [
+      {
+        "users": 1,
+        "requests": 100,
+        "rps": 3.5,
+        "median_ms": 274.7,
+        "p95_ms": 406.17,
+        "max_ms": 541.52,
+        "errors": 0,
+        "error_rate": 0.0
+      },
+      {
+        "users": 5,
+        "requests": 100,
+        "rps": 6.43,
+        "median_ms": 699.53,
+        "p95_ms": 1214.85,
+        "max_ms": 1474.97,
+        "errors": 0,
+        "error_rate": 0.0
+      },
+      {
+        "users": 10,
+        "requests": 100,
+        "rps": 6.23,
+        "median_ms": 1264.86,
+        "p95_ms": 3358.03,
+        "max_ms": 4827.33,
+        "errors": 0,
+        "error_rate": 0.0
+      },
+      {
+        "users": 20,
+        "requests": 100,
+        "rps": 8.78,
+        "median_ms": 2003.08,
+        "p95_ms": 3068.54,
+        "max_ms": 3614.33,
+        "errors": 0,
+        "error_rate": 0.0
+      }
+    ]
+  }
+}

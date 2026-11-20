@@ -1,4 +1,5 @@
 import { apiClient, setAccessToken } from './apiClient'
+import { dedupGet } from './requestCache'
 import type { LoginResponse, User } from '@/types'
 
 export { refreshSession } from './apiClient'
@@ -14,7 +15,6 @@ export async function logout(): Promise<void> {
   setAccessToken(null)
 }
 
-export async function me(): Promise<User> {
-  const { data } = await apiClient.get<User>('/auth/me/')
-  return data
+export function me(): Promise<User> {
+  return dedupGet('auth:me', async () => (await apiClient.get<User>('/auth/me/')).data)
 }

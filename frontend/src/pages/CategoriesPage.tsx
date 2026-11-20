@@ -10,7 +10,7 @@ import { serverErrorMessage } from '@/utils/formErrors'
 import { Button } from '@/components/ui/button'
 import { Field, Input, Textarea } from '@/components/ui/field'
 import { Dialog, ConfirmDialog } from '@/components/ui/overlay'
-import { EmptyState, ErrorState, LoadingState } from '@/components/ui/feedback'
+import { EmptyState, ErrorState, ListSkeleton } from '@/components/ui/feedback'
 import { categorySchema, type CategoryValues } from '@/schemas'
 
 export function CategoriesPage() {
@@ -92,7 +92,7 @@ export function CategoriesPage() {
       </div>
 
       <div className="overflow-hidden rounded-card border border-line bg-white shadow-card">
-        {loading ? <LoadingState /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : items.length === 0 ? (
+        {loading ? <div className="p-4"><ListSkeleton rows={5} /></div> : error ? <ErrorState message={error} onRetry={() => void load()} /> : items.length === 0 ? (
           <EmptyState title="No categories" description="Create a category to organise products." />
         ) : (
           <table className="w-full text-left text-sm">

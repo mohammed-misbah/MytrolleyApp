@@ -1,0 +1,137 @@
+{
+  "label": "final",
+  "products_in_db": 100,
+  "repeat": 7,
+  "endpoints": {
+    "product_list": {
+      "min_ms": 26.99,
+      "median_ms": 29.19,
+      "p95_ms": 32.82,
+      "max_ms": 32.82,
+      "queries": 10,
+      "query_time_ms": 10.0,
+      "payload_bytes": 6547,
+      "status": 200
+    },
+    "product_search": {
+      "min_ms": 26.66,
+      "median_ms": 28.36,
+      "p95_ms": 34.59,
+      "max_ms": 34.59,
+      "queries": 10,
+      "query_time_ms": 10.0,
+      "payload_bytes": 6547,
+      "status": 200
+    },
+    "product_category_filter": {
+      "min_ms": 31.27,
+      "median_ms": 34.47,
+      "p95_ms": 40.36,
+      "max_ms": 40.36,
+      "queries": 10,
+      "query_time_ms": 11.0,
+      "payload_bytes": 6545,
+      "status": 200
+    },
+    "product_store_filter": {
+      "min_ms": 47.51,
+      "median_ms": 51.4,
+      "p95_ms": 58.59,
+      "max_ms": 58.59,
+      "queries": 10,
+      "query_time_ms": 12.0,
+      "payload_bytes": 10126,
+      "status": 200
+    },
+    "product_sort": {
+      "min_ms": 29.02,
+      "median_ms": 31.62,
+      "p95_ms": 37.09,
+      "max_ms": 37.09,
+      "queries": 10,
+      "query_time_ms": 10.0,
+      "payload_bytes": 6547,
+      "status": 200
+    },
+    "product_detail": {
+      "min_ms": 22.21,
+      "median_ms": 26.67,
+      "p95_ms": 30.67,
+      "max_ms": 30.67,
+      "queries": 12,
+      "query_time_ms": 12.0,
+      "payload_bytes": 2089,
+      "status": 200
+    },
+    "dashboard_summary": {
+      "min_ms": 21.76,
+      "median_ms": 22.49,
+      "p95_ms": 26.75,
+      "max_ms": 26.75,
+      "queries": 12,
+      "query_time_ms": 10.0,
+      "payload_bytes": 4058,
+      "status": 200
+    },
+    "categories": {
+      "min_ms": 9.82,
+      "median_ms": 10.27,
+      "p95_ms": 11.1,
+      "max_ms": 11.1,
+      "queries": 6,
+      "query_time_ms": 3.0,
+      "payload_bytes": 1423,
+      "status": 200
+    },
+    "stores": {
+      "min_ms": 8.57,
+      "median_ms": 9.42,
+      "p95_ms": 10.31,
+      "max_ms": 10.31,
+      "queries": 5,
+      "query_time_ms": 3.0,
+      "payload_bytes": 613,
+      "status": 200
+    },
+    "public_product_list": {
+      "min_ms": 24.84,
+      "median_ms": 27.93,
+      "p95_ms": 66.38,
+      "max_ms": 66.38,
+      "queries": 5,
+      "query_time_ms": 8.0,
+      "payload_bytes": 7631,
+      "status": 200
+    },
+    "public_product_detail": {
+      "min_ms": 9.51,
+      "median_ms": 9.89,
+      "p95_ms": 11.15,
+      "max_ms": 11.15,
+      "queries": 5,
+      "query_time_ms": 4.0,
+      "payload_bytes": 745,
+      "status": 200
+    },
+    "public_categories": {
+      "min_ms": 6.62,
+      "median_ms": 6.74,
+      "p95_ms": 7.55,
+      "max_ms": 7.55,
+      "queries": 3,
+      "query_time_ms": 2.0,
+      "payload_bytes": 907,
+      "status": 200
+    },
+    "public_stores": {
+      "min_ms": 4.27,
+      "median_ms": 4.57,
+      "p95_ms": 5.17,
+      "max_ms": 5.17,
+      "queries": 2,
+      "query_time_ms": 2.0,
+      "payload_bytes": 352,
+      "status": 200
+    }
+  }
+}

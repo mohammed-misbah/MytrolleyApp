@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { getAccessToken, notifyAuthChanged, setAccessToken, subscribeAuth } from '@/services/apiClient'
 import { login as apiLogin, logout as apiLogout, me as apiMe, refreshSession } from '@/services/authService'
+import { setCacheScope } from '@/services/requestCache'
 import type { User } from '@/types'
 
 interface AuthContextValue {
@@ -21,10 +22,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   const refreshUser = useCallback(async () => {
+    let refreshedUser: User | null = null
     if (!getAccessToken()) {
-      // The refresh token lives only in an HttpOnly cookie. On a fresh load,
-      // exchange it for an in-memory access token using the readable CSRF cookie.
-      await refreshSession()
+      // The refresh endpoint already returns the user payload, so a separate
+      // /auth/me/ request is unnecessary on a fresh load.
+      refreshedUser = (await refreshSession())?.user ?? null
     }
     if (!getAccessToken()) {
       setUser(null)
@@ -32,7 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
     try {
-      setUser(await apiMe())
+      setUser(refreshedUser ?? (await apiMe()))
       setToken(getAccessToken())
     } catch {
       setAccessToken(null)
@@ -47,9 +49,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void refreshUser()
     return subscribeAuth(() => {
       setToken(getAccessToken())
-      if (!getAccessToken()) setUser(null)
+      if (!getAccessToken()) {
+        setUser(null)
+        setCacheScope('anon')
+      }
     })
   }, [refreshUser])
+
+  // Private responses must never be shared across accounts. Changing scope
+  // clears both cached and in-flight entries from the previous user.
+  useEffect(() => {
+    setCacheScope(user ? `user:${user.id}` : 'anon')
+  }, [user?.id])
 
   const signIn = useCallback(async (username: string, password: string) => {
     const response = await apiLogin(username, password)

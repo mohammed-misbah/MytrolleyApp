@@ -1,7 +1,9 @@
 import axios from 'axios'
 import { apiClient, multipartHeaders } from './apiClient'
+import { cachedGet, dedupGet, invalidateCache } from './requestCache'
 import type {
   AssociationWrite,
+  DashboardSummary,
   AttributeWrite,
   Category,
   CategoryWrite,
@@ -27,9 +29,15 @@ function paramsFrom(filters: ProductFilters): Record<string, string | number | b
 }
 
 export const catalogService = {
+  // Dashboard (single bounded-cost request)
+  getDashboardSummary: (): Promise<DashboardSummary> =>
+    cachedGet('dashboard:summary', async () => (await apiClient.get<DashboardSummary>('/dashboard/summary/')).data),
+
   // Categories
-  listCategories: async (): Promise<Category[]> => (await apiClient.get<Category[]>('/categories/')).data,
-  getCategory: async (id: number): Promise<Category> => (await apiClient.get<Category>(`/categories/${id}/`)).data,
+  listCategories: (): Promise<Category[]> =>
+    cachedGet('categories', async () => (await apiClient.get<Category[]>('/categories/')).data),
+  getCategory: (id: number): Promise<Category> =>
+    dedupGet(`category:${id}`, async () => (await apiClient.get<Category>(`/categories/${id}/`)).data),
   createCategory: async (body: CategoryWrite): Promise<Category> =>
     (await apiClient.post<Category>('/categories/', body)).data,
   updateCategory: async (id: number, body: Partial<CategoryWrite>): Promise<Category> =>
@@ -39,8 +47,10 @@ export const catalogService = {
   },
 
   // Stores
-  listStores: async (): Promise<Store[]> => (await apiClient.get<Store[]>('/stores/')).data,
-  getStore: async (id: number): Promise<Store> => (await apiClient.get<Store>(`/stores/${id}/`)).data,
+  listStores: (): Promise<Store[]> =>
+    cachedGet('stores', async () => (await apiClient.get<Store[]>('/stores/')).data),
+  getStore: (id: number): Promise<Store> =>
+    dedupGet(`store:${id}`, async () => (await apiClient.get<Store>(`/stores/${id}/`)).data),
   createStore: async (body: StoreWrite): Promise<Store> => (await apiClient.post<Store>('/stores/', body)).data,
   updateStore: async (id: number, body: Partial<StoreWrite>): Promise<Store> =>
     (await apiClient.patch<Store>(`/stores/${id}/`, body)).data,
@@ -49,10 +59,15 @@ export const catalogService = {
   },
 
   // Products
-  listProducts: async (filters: ProductFilters): Promise<Paginated<ProductListItem>> =>
-    (await apiClient.get<Paginated<ProductListItem>>('/products/', { params: paramsFrom(filters) })).data,
-  getProduct: async (id: number): Promise<ProductDetail> =>
-    (await apiClient.get<ProductDetail>(`/products/${id}/`)).data,
+  listProducts: (filters: ProductFilters): Promise<Paginated<ProductListItem>> => {
+    const params = paramsFrom(filters)
+    const key = JSON.stringify(Object.entries(params).sort(([left], [right]) => left.localeCompare(right)))
+    return dedupGet(`products:${key}`, async () =>
+      (await apiClient.get<Paginated<ProductListItem>>('/products/', { params })).data,
+    )
+  },
+  getProduct: (id: number): Promise<ProductDetail> =>
+    dedupGet(`product:${id}`, async () => (await apiClient.get<ProductDetail>(`/products/${id}/`)).data),
   createProduct: async (body: ProductWrite): Promise<ProductDetail> =>
     (await apiClient.post<ProductDetail>('/products/', body)).data,
   updateProduct: async (id: number, body: Partial<ProductWrite>): Promise<ProductDetail> =>
@@ -62,8 +77,10 @@ export const catalogService = {
   },
 
   // Attributes
-  listAttributes: async (productId: number): Promise<ProductAttribute[]> =>
-    (await apiClient.get<ProductAttribute[]>(`/products/${productId}/attributes/`)).data,
+  listAttributes: (productId: number): Promise<ProductAttribute[]> =>
+    dedupGet(`attributes:${productId}`, async () =>
+      (await apiClient.get<ProductAttribute[]>(`/products/${productId}/attributes/`)).data,
+    ),
   createAttribute: async (productId: number, body: AttributeWrite): Promise<ProductAttribute> =>
     (await apiClient.post<ProductAttribute>(`/products/${productId}/attributes/`, body)).data,
   updateAttribute: async (productId: number, id: number, body: Partial<AttributeWrite>): Promise<ProductAttribute> =>
@@ -73,8 +90,10 @@ export const catalogService = {
   },
 
   // Images (multipart)
-  listImages: async (productId: number): Promise<ProductImage[]> =>
-    (await apiClient.get<ProductImage[]>(`/products/${productId}/images/`)).data,
+  listImages: (productId: number): Promise<ProductImage[]> =>
+    dedupGet(`images:${productId}`, async () =>
+      (await apiClient.get<ProductImage[]>(`/products/${productId}/images/`)).data,
+    ),
   uploadImage: async (productId: number, file: File, meta?: Partial<Pick<ProductImage, 'alt_text' | 'display_order' | 'is_primary'>>): Promise<ProductImage> => {
     const form = new FormData()
     form.append('image', file)
@@ -86,6 +105,7 @@ export const catalogService = {
       form,
       { headers: { ...multipartHeaders(), 'Content-Type': 'multipart/form-data' } },
     )
+    invalidateCache()
     return data
   },
   updateImage: async (productId: number, id: number, meta: Partial<Pick<ProductImage, 'alt_text' | 'display_order' | 'is_primary'>>): Promise<ProductImage> => {
@@ -98,15 +118,19 @@ export const catalogService = {
       form,
       { headers: { ...multipartHeaders(), 'Content-Type': 'multipart/form-data' } },
     )
+    invalidateCache()
     return data
   },
   deleteImage: async (productId: number, id: number): Promise<void> => {
     await apiClient.delete(`/products/${productId}/images/${id}/`)
+    invalidateCache()
   },
 
   // Product-store associations
-  listAssociations: async (productId: number): Promise<ProductStore[]> =>
-    (await apiClient.get<ProductStore[]>(`/products/${productId}/stores/`)).data,
+  listAssociations: (productId: number): Promise<ProductStore[]> =>
+    dedupGet(`associations:${productId}`, async () =>
+      (await apiClient.get<ProductStore[]>(`/products/${productId}/stores/`)).data,
+    ),
   createAssociation: async (productId: number, body: AssociationWrite): Promise<ProductStore> =>
     (await apiClient.post<ProductStore>(`/products/${productId}/stores/`, body)).data,
   updateAssociation: async (productId: number, id: number, body: Partial<AssociationWrite>): Promise<ProductStore> =>

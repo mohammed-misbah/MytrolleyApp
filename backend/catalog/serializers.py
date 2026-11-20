@@ -35,15 +35,35 @@ class CategorySerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "slug", "created_at", "updated_at", "children", "product_count"]
 
     def get_children(self, obj: Category) -> list[dict]:
-        if obj.children.exists():
-            children = CategorySerializer(obj.children.filter(is_active=True), many=True).data
-            return [dict(child) for child in children]
-        return []
+        cache = self.context.get("category_children")
+        if cache is not None:
+            children = cache.get(obj.id, [])
+        else:
+            prefetched = getattr(obj, "_prefetched_objects_cache", {}).get("children")
+            if prefetched is not None:
+                children = [child for child in prefetched if child.is_active]
+            else:
+                children = obj.children.filter(is_active=True)
+        # Children are already materialised; do not hand them a cache that could
+        # recursively reuse a parent's list.
+        child_context = {
+            key: value for key, value in self.context.items() if key != "category_children"
+        }
+        return [
+            dict(child)
+            for child in CategorySerializer(children, many=True, context=child_context).data
+        ]
 
     def get_product_count(self, obj: Category) -> int:
         # Membership is independent of is_active: Active and Inactive products
         # both count. The default Product manager excludes soft-deleted rows,
         # so deleted products no longer contribute to this count.
+        annotated = getattr(obj, "product_count", None)
+        if annotated is not None:
+            return int(annotated)
+        cache = self.context.get("category_product_counts")
+        if cache is not None:
+            return int(cache.get(obj.id, 0))
         return obj.products.count()
 
 
@@ -109,6 +129,12 @@ class StoreSerializer(serializers.ModelSerializer):
     def get_product_count(self, obj: Store) -> int:
         # Associations are retained on soft deletion, so exclude their deleted
         # products explicitly while preserving the existing is_available rule.
+        annotated = getattr(obj, "product_count", None)
+        if annotated is not None:
+            return int(annotated)
+        cache = self.context.get("store_product_counts")
+        if cache is not None:
+            return int(cache.get(obj.id, 0))
         return obj.product_associations.filter(
             is_available=True, product__deleted_at__isnull=True
         ).count()

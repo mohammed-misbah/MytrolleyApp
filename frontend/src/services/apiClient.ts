@@ -1,5 +1,6 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios'
-import type { ApiErrorShape } from '@/types'
+import type { ApiErrorShape, User } from '@/types'
+import { invalidateCache } from './requestCache'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
@@ -42,6 +43,7 @@ export function subscribeAuth(listener: () => void) {
 }
 
 export function notifyAuthChanged() {
+  invalidateCache()
   authListeners.forEach((l) => l())
 }
 
@@ -78,14 +80,20 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 })
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const method = response.config.method?.toLowerCase()
+    if (method && !['get', 'head', 'options'].includes(method)) {
+      invalidateCache()
+    }
+    return response
+  },
   async (error: AxiosError) => {
     const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
     if (error.response?.status === 401 && !original._retry && accessToken) {
       original._retry = true
       const next = await refreshSession()
       if (next) {
-        original.headers.Authorization = `Bearer ${next}`
+        original.headers.Authorization = `Bearer ${next.access}`
         return apiClient(original)
       }
       setAccessToken(null)
@@ -110,18 +118,23 @@ export function multipartHeaders(): Record<string, string> {
   return accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
 }
 
-let refreshInFlight: Promise<string | null> | null = null
+interface RefreshResult {
+  access: string
+  user: User
+}
 
-/** Exchange the HttpOnly refresh cookie for a new in-memory access token.
+let refreshInFlight: Promise<RefreshResult | null> | null = null
+
+/** Exchange the HttpOnly refresh cookie for a new access token and user payload.
  * Single-flight: refresh tokens rotate, so two concurrent calls would make one
  * look like reuse and revoke the whole session family. */
-export function refreshSession(): Promise<string | null> {
+export function refreshSession(): Promise<RefreshResult | null> {
   if (refreshInFlight) return refreshInFlight
   refreshInFlight = (async () => {
     const csrf = getCsrfCookie()
     if (!csrf) return null
     try {
-      const response = await axios.post<{ access: string }>(
+      const response = await axios.post<RefreshResult>(
         `${BASE_URL}/auth/refresh/`,
         {},
         {
@@ -133,7 +146,7 @@ export function refreshSession(): Promise<string | null> {
         },
       )
       setAccessToken(response.data.access)
-      return response.data.access
+      return response.data
     } catch {
       return null
     } finally {

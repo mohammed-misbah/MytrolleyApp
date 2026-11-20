@@ -8,7 +8,8 @@ import { toError } from '@/services/apiClient'
 import { Button } from '@/components/ui/button'
 import { Input, Select } from '@/components/ui/field'
 import { ConfirmDialog, Dialog } from '@/components/ui/overlay'
-import { EmptyState, ErrorState, LoadingState } from '@/components/ui/feedback'
+import { EmptyState, ErrorState, ListSkeleton, LoadingState } from '@/components/ui/feedback'
+import { AppImage } from '@/components/ui/AppImage'
 import { formatDate, formatMoney } from '@/utils/format'
 import { validatePriceRange } from '@/utils/validation'
 
@@ -36,6 +37,9 @@ export function ProductsPage() {
   // Guards against a rapid double-click before React re-renders the disabled
   // Delete button, so a single confirmation cannot issue two DELETE requests.
   const deletingRef = useRef(false)
+  // Sequence guards: an older response must never overwrite newer results.
+  const listRequest = useRef(0)
+  const detailRequest = useRef(0)
 
   // A single source of truth for "a real store is selected". Price inputs,
   // price sorting and price filtering all depend on this value. Using a
@@ -66,12 +70,16 @@ export function ProductsPage() {
     }
     setLoading(true)
     setError(null)
+    const requestId = ++listRequest.current
     try {
-      setData(await catalogService.listProducts(active))
+      const result = await catalogService.listProducts(active)
+      if (requestId !== listRequest.current) return
+      setData(result)
     } catch (err) {
+      if (requestId !== listRequest.current) return
       setError(toError(err).message)
     } finally {
-      setLoading(false)
+      if (requestId === listRequest.current) setLoading(false)
     }
   }, [filters, storeSelected])
 
@@ -97,12 +105,15 @@ export function ProductsPage() {
 
   const openDetail = async (id: number) => {
     setDetailLoading(true)
+    const requestId = ++detailRequest.current
     try {
-      setDetail(await catalogService.getProduct(id))
+      const result = await catalogService.getProduct(id)
+      if (requestId !== detailRequest.current) return
+      setDetail(result)
     } catch (err) {
-      toast.error(toError(err).message)
+      if (requestId === detailRequest.current) toast.error(toError(err).message)
     } finally {
-      setDetailLoading(false)
+      if (requestId === detailRequest.current) setDetailLoading(false)
     }
   }
 
@@ -286,7 +297,7 @@ export function ProductsPage() {
 
       <div className="overflow-hidden rounded-card border border-line bg-white shadow-card">
         {loading ? (
-          <LoadingState label="Loading products…" />
+          <div className="p-4"><ListSkeleton rows={8} /></div>
         ) : error ? (
           <ErrorState message={error} onRetry={() => void load()} />
         ) : !data || data.results.length === 0 ? (
@@ -312,7 +323,7 @@ export function ProductsPage() {
                       <td className="px-4 py-3">
                         <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-control bg-muted">
                           {product.primary_image?.image_url ? (
-                            <img src={product.primary_image.image_url} alt="" className="h-full w-full object-cover" />
+                            <AppImage src={product.primary_image.image_url} alt="" productId={product.id} imageId={product.primary_image.id} className="h-full w-full object-cover" />
                           ) : (
                             <PackageSearch className="h-4 w-4 text-subtle" />
                           )}
@@ -367,7 +378,7 @@ export function ProductsPage() {
                   <div className="flex items-center gap-3">
                     <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-control bg-muted">
                       {product.primary_image?.image_url ? (
-                        <img src={product.primary_image.image_url} alt="" className="h-full w-full object-cover" />
+                        <AppImage src={product.primary_image.image_url} alt="" productId={product.id} imageId={product.primary_image.id} className="h-full w-full object-cover" />
                       ) : (
                         <PackageSearch className="h-5 w-5 text-subtle" />
                       )}
@@ -458,7 +469,7 @@ export function ProductsPage() {
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-subtle">Images</p>
                 <div className="grid grid-cols-3 gap-2">
                   {detail.images.map((image) => (
-                    <img key={image.id} src={image.image_url} alt={image.alt_text} className="h-20 w-full rounded-control object-cover" />
+                    <AppImage key={image.id} src={image.image_url} alt={image.alt_text} productId={detail.id} imageId={image.id} className="h-20 w-full rounded-control object-cover" />
                   ))}
                 </div>
               </div>

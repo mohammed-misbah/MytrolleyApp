@@ -8,9 +8,10 @@ from decimal import Decimal
 from functools import wraps
 from typing import Any, TypeVar
 
+from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import F, Q
+from django.db.models import Count, F, Prefetch, Q
 from django.http import Http404
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
@@ -21,6 +22,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import HasBusinessPermission
+from catalog.dashboard_service import build_dashboard_summary
 from catalog.image_storage import delete_stored_image_after_commit
 from catalog.models import Category, Product, ProductAttribute, ProductImage, ProductStore, Store
 from catalog.serializers import (
@@ -45,6 +47,22 @@ from core.schema import ErrorEnvelopeSerializer
 _logger = logging.getLogger("mytrolley.catalog")
 
 _F = TypeVar("_F", bound=Callable[..., Response])
+
+
+def build_store_product_counts() -> dict[int, int]:
+    """Available-product count per store in a single grouped query."""
+    rows = (
+        ProductStore.objects.filter(is_available=True, product__deleted_at__isnull=True)
+        .values("store_id")
+        .annotate(count=Count("product_id", distinct=True))
+    )
+    return {row["store_id"]: row["count"] for row in rows}
+
+
+def build_category_product_counts() -> dict[int, int]:
+    """Product count per category in a single grouped query."""
+    rows = Product.objects.values("category_id").annotate(count=Count("id"))
+    return {row["category_id"]: row["count"] for row in rows}
 
 
 def integrity_conflict(message: str) -> Callable[[_F], _F]:
@@ -99,7 +117,13 @@ class CategoryListCreateView(APIView):
     )
     def get(self, request: Request) -> Response:
         is_active = request.query_params.get("is_active")
-        queryset = Category.objects.select_related("parent").prefetch_related("children")
+        queryset = (
+            Category.objects.select_related("parent")
+            .prefetch_related(
+                Prefetch("children", queryset=Category.objects.filter(is_active=True))
+            )
+            .annotate(product_count=Count("products", distinct=True))
+        )
 
         if is_active is not None:
             if is_active.lower() in ("true", "1"):
@@ -235,7 +259,16 @@ class StoreListCreateView(APIView):
     )
     def get(self, request: Request) -> Response:
         is_active = request.query_params.get("is_active")
-        queryset = Store.objects.all()
+        queryset = Store.objects.annotate(
+            product_count=Count(
+                "product_associations",
+                filter=Q(
+                    product_associations__is_available=True,
+                    product_associations__product__deleted_at__isnull=True,
+                ),
+                distinct=True,
+            )
+        )
 
         if is_active is not None:
             if is_active.lower() in ("true", "1"):
@@ -480,7 +513,11 @@ class ProductListCreateView(APIView):
         serializer = ProductListSerializer(
             products,
             many=True,
-            context={"request": request, "store_id": params.get("store")},
+            context={
+                "request": request,
+                "store_id": params.get("store"),
+                "store_product_counts": build_store_product_counts(),
+            },
         )
 
         return Response(
@@ -511,7 +548,10 @@ class ProductListCreateView(APIView):
         serializer.is_valid(raise_exception=True)
         product = serializer.save()
         return Response(
-            ProductDetailSerializer(product, context={"request": request}).data,
+            ProductDetailSerializer(
+                product,
+                context={"request": request, "store_product_counts": build_store_product_counts()},
+            ).data,
             status=status.HTTP_201_CREATED,
         )
 
@@ -549,7 +589,10 @@ class ProductDetailView(APIView):
     )
     def get(self, request: Request, pk: int) -> Response:
         product = self.get_object(pk)
-        serializer = ProductDetailSerializer(product, context={"request": request})
+        serializer = ProductDetailSerializer(
+            product,
+            context={"request": request, "store_product_counts": build_store_product_counts()},
+        )
         return Response(serializer.data)
 
     @extend_schema(
@@ -571,7 +614,12 @@ class ProductDetailView(APIView):
         serializer = ProductWriteSerializer(product, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         product = serializer.save()
-        return Response(ProductDetailSerializer(product, context={"request": request}).data)
+        return Response(
+            ProductDetailSerializer(
+                product,
+                context={"request": request, "store_product_counts": build_store_product_counts()},
+            ).data
+        )
 
     @extend_schema(
         tags=["Products"],
@@ -773,6 +821,13 @@ class ProductImageListCreateView(APIView):
     )
     def post(self, request: Request, product_id: int) -> Response:
         product = self.get_product(product_id)
+        if product.images.count() >= settings.PRODUCT_IMAGE_MAX_COUNT:
+            return api_error_response(
+                request._request,
+                code="VALIDATION_ERROR",
+                message="A product can have at most 10 images.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         serializer = ProductImageWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         image = serializer.save(product=product)
@@ -890,7 +945,11 @@ class ProductStoreListCreateView(APIView):
     def get(self, request: Request, product_id: int) -> Response:
         product = self.get_product(product_id)
         associations = product.store_associations.select_related("store").all()
-        serializer = ProductStoreSerializer(associations, many=True)
+        serializer = ProductStoreSerializer(
+            associations,
+            many=True,
+            context={"store_product_counts": build_store_product_counts()},
+        )
         return Response(serializer.data)
 
     @extend_schema(
@@ -1024,3 +1083,27 @@ class ProductStoreDetailView(APIView):
         association = self.get_association(product, assoc_id)
         association.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class DashboardSummaryView(APIView):
+    """Single bounded-cost endpoint for dashboard metrics.
+
+    Replaces the previous five parallel list/count requests plus the per-store
+    product pagination the dashboard used to calculate zero-quantity counts.
+    """
+
+    permission_classes = [IsAuthenticated, HasBusinessPermission]
+    permission_required = "accounts.manage_catalog"
+
+    @extend_schema(
+        tags=["Dashboard"],
+        summary="Dashboard summary",
+        description="Catalogue totals, recent products and per-store availability.",
+        responses={
+            200: dict,
+            401: ErrorEnvelopeSerializer,
+            403: ErrorEnvelopeSerializer,
+        },
+    )
+    def get(self, request: Request) -> Response:
+        return Response(build_dashboard_summary(request))

@@ -17,16 +17,18 @@ import type { ProductFilters, ProductListItem, Store } from '@/types'
 import { catalogService } from '@/services/catalogService'
 import { toError } from '@/services/apiClient'
 import { formatDate } from '@/utils/format'
-import { EmptyState } from '@/components/ui/feedback'
+import { DashboardSkeleton, EmptyState } from '@/components/ui/feedback'
 import { StoreSelect } from '@/components/ui/StoreSelect'
 import { defaultVisibleStoreIds, reorderVisibleStoreIds } from '@/utils/storeSelection'
 
 interface Metrics {
   total: number
   active: number
+  inactive: number
   categories: number
   stores: number
   recent: ProductListItem[]
+  creation_series: Array<{ date: string; count: number }>
 }
 
 const iconStroke = { strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
@@ -67,15 +69,9 @@ function MiniTile({ icon, label, value }: { icon: React.ReactNode; label: string
   )
 }
 
-function AreaChart({ products, total }: { products: ProductListItem[]; total: number }) {
-  const days = 30
-  const perDay = Array.from({ length: days }, () => 0)
-  const now = Date.now()
-  products.forEach((product) => {
-    const time = new Date(product.created_at).getTime()
-    const index = Math.floor((now - time) / 86_400_000)
-    if (index >= 0 && index < days) perDay[days - 1 - index] += 1
-  })
+function AreaChart({ dailyCounts, total }: { dailyCounts: number[]; total: number }) {
+  const perDay = dailyCounts.length === 30 ? dailyCounts : Array.from({ length: 30 }, () => 0)
+  const days = perDay.length
   const baseline = Math.max(0, total - perDay.reduce((sum, count) => sum + count, 0))
   let running = baseline
   const values = perDay.map((count) => {
@@ -171,30 +167,28 @@ export function DashboardPage() {
   const tabRequest = useRef(0)
   const firstTabRun = useRef(true)
   const [outOfStockCounts, setOutOfStockCounts] = useState<Record<number, number>>({})
-  const countRequest = useRef(0)
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const [all, active, categories, storeList, recent] = await Promise.all([
-        catalogService.listProducts({ page_size: 1 }),
-        catalogService.listProducts({ is_active: true, page_size: 1 }),
-        catalogService.listCategories(),
-        catalogService.listStores(),
-        catalogService.listProducts({ ordering: '-created_at', page_size: 5 }),
-      ])
+      const summary = await catalogService.getDashboardSummary()
       setMetrics({
-        total: all.count,
-        active: active.count,
-        categories: categories.length,
-        stores: storeList.length,
-        recent: recent.results,
+        total: summary.products.total,
+        active: summary.products.active,
+        inactive: summary.products.inactive,
+        categories: summary.categories,
+        stores: summary.stores,
+        recent: summary.recent_products,
+        creation_series: summary.creation_series,
       })
-      setTabProducts(recent.results)
-      setStores(storeList)
+      setTabProducts(summary.recent_products)
+      setStores(summary.store_availability)
+      setOutOfStockCounts(
+        Object.fromEntries(summary.store_availability.map((store) => [store.id, store.out_of_stock])),
+      )
       setVisibleStoreIds((current) =>
-        current.length ? current : defaultVisibleStoreIds(storeList.map((store) => store.id)),
+        current.length ? current : defaultVisibleStoreIds(summary.store_availability.map((store) => store.id)),
       )
     } catch (err) {
       setError(toError(err).message)
@@ -233,45 +227,7 @@ export function DashboardPage() {
       })
   }, [statusTab])
 
-  const outOfStockKey = [...visibleStoreIds.slice(0, 3)].sort((a, b) => a - b).join(',')
-
-  useEffect(() => {
-    const ids = outOfStockKey ? outOfStockKey.split(',').map(Number) : []
-    if (ids.length === 0) return
-    const requestId = ++countRequest.current
-    const countForStore = async (storeId: number): Promise<[number, number]> => {
-      const seen = new Set<number>()
-      let count = 0
-      let page = 1
-      let totalPages = 1
-      do {
-        const result = await catalogService.listProducts({ store: storeId, page, page_size: 100 })
-        totalPages = result.total_pages
-        result.results.forEach((product) => {
-          if (product.store_price?.quantity === 0 && !seen.has(product.id)) {
-            seen.add(product.id)
-            count += 1
-          }
-        })
-        page += 1
-      } while (page <= totalPages)
-      return [storeId, count]
-    }
-    void Promise.all(ids.map(countForStore))
-      .then((entries) => {
-        if (requestId !== countRequest.current) return
-        setOutOfStockCounts((current) => ({ ...current, ...Object.fromEntries(entries) }))
-      })
-      .catch(() => undefined)
-  }, [outOfStockKey])
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center gap-2 py-10 text-[14px] text-[var(--text-2)]">
-        <Loader2 className="h-4 w-4 animate-spin" {...iconStroke} /> Loading dashboard…
-      </div>
-    )
-  }
+  if (loading) return <DashboardSkeleton />
   if (error) {
     return (
       <div
@@ -289,7 +245,7 @@ export function DashboardPage() {
 
   const total = metrics?.total ?? 0
   const active = metrics?.active ?? 0
-  const inactive = Math.max(0, total - active)
+  const inactive = metrics?.inactive ?? 0
   const categories = metrics?.categories ?? 0
   const storeCount = metrics?.stores ?? 0
   const recent = metrics?.recent ?? []
@@ -331,7 +287,7 @@ export function DashboardPage() {
             </div>
           </div>
           <div className="mt-6 min-h-[240px] min-[1280px]:mt-0">
-            <AreaChart products={recent} total={total} />
+            <AreaChart dailyCounts={(metrics?.creation_series ?? []).map((day) => day.count)} total={total} />
           </div>
         </section>
 

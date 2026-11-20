@@ -1,7 +1,7 @@
 [tool.ruff]
-target-version = "py314"
+target-version = "py312"
 line-length = 100
-extend-exclude = [".venv", "migrations"]
+extend-exclude = [".venv", ".venv312", "migrations"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "DJ"]
@@ -20,7 +20,7 @@ quote-style = "double"
 indent-style = "space"
 
 [tool.mypy]
-python_version = "3.14"
+python_version = "3.12"
 plugins = ["mypy_django_plugin.main"]
 disallow_untyped_defs = true
 check_untyped_defs = true
@@ -29,7 +29,7 @@ warn_unused_ignores = true
 warn_redundant_casts = true
 warn_return_any = true
 show_error_codes = true
-exclude = ["migrations/", "tests/", "\\.venv/"]
+exclude = ["migrations/", "tests/", "\\.venv/", "\\.venv312/"]
 
 [[tool.mypy.overrides]]
 module = ["tests.*"]

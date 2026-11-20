@@ -53,6 +53,26 @@ export interface Store {
   product_count?: number
 }
 
+export interface DashboardSummary {
+  products: { total: number; active: number; inactive: number }
+  categories: number
+  stores: number
+  recent_products: ProductListItem[]
+  creation_series: Array<{ date: string; count: number }>
+  store_availability: Array<{
+    id: number
+    name: string
+    code: string
+    description: string
+    address: string
+    is_active: boolean
+    created_at: string
+    updated_at: string
+    product_count: number
+    out_of_stock: number
+  }>
+}
+
 export interface ProductAttribute {
   id: number
   name: string

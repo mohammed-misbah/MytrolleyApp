@@ -13,6 +13,47 @@ export function LoadingState({ label = 'Loading…' }: { label?: string }) {
   )
 }
 
+export function Skeleton({ className = '', style }: { className?: string; style?: React.CSSProperties }) {
+  return (
+    <div
+      aria-hidden
+      className={`animate-pulse rounded-[10px] ${className}`}
+      style={{ background: 'var(--tile)', border: '1px solid var(--line)', ...style }}
+    />
+  )
+}
+
+export function ListSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <div className="flex flex-col gap-3 py-2">
+      {Array.from({ length: rows }, (_, index) => (
+        <Skeleton key={index} className="h-[46px] w-full" />
+      ))}
+    </div>
+  )
+}
+
+export function DashboardSkeleton() {
+  return (
+    <div className="flex flex-col gap-[22px]">
+      <div>
+        <Skeleton className="h-[28px] w-[220px]" />
+        <Skeleton className="mt-3 h-[14px] w-[320px]" />
+      </div>
+      <div className="grid grid-cols-1 gap-[18px] sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }, (_, index) => (
+          <Skeleton key={index} className="h-[86px] w-full rounded-[20px]" />
+        ))}
+      </div>
+      <div className="grid grid-cols-1 gap-[18px] xl:grid-cols-[1.7fr_1fr]">
+        <Skeleton className="h-[320px] w-full rounded-[20px]" />
+        <Skeleton className="h-[320px] w-full rounded-[20px]" />
+      </div>
+      <Skeleton className="h-[260px] w-full rounded-[20px]" />
+    </div>
+  )
+}
+
 export function EmptyState({ title, description }: { title: string; description?: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">

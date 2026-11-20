@@ -9,7 +9,7 @@ import { applyServerErrors, serverErrorMessage } from '@/utils/formErrors'
 import { Button } from '@/components/ui/button'
 import { Field, Input, Select } from '@/components/ui/field'
 import { Dialog, ConfirmDialog } from '@/components/ui/overlay'
-import { EmptyState, LoadingState } from '@/components/ui/feedback'
+import { EmptyState, ListSkeleton } from '@/components/ui/feedback'
 import { attributeSchema, type AttributeValues } from '@/schemas'
 
 export function AttributesPage() {
@@ -110,7 +110,7 @@ export function AttributesPage() {
         {selected === '' ? (
           <EmptyState title="Select a product" description="Attributes are managed per product." />
         ) : loading ? (
-          <LoadingState />
+          <div className="p-4"><ListSkeleton rows={5} /></div>
         ) : items.length === 0 ? (
           <EmptyState title="No attributes" description="Add flexible attributes for this product." />
         ) : (

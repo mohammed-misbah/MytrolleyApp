@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Field, Input, Select, Textarea } from '@/components/ui/field'
 import { ConfirmDialog, Dialog } from '@/components/ui/overlay'
 import { EmptyState, LoadingState } from '@/components/ui/feedback'
+import { AppImage } from '@/components/ui/AppImage'
 import { attributeSchema, associationSchema, productSchema, type AttributeValues, type AssociationValues, type ProductValues } from '@/schemas'
 import { formatMoney } from '@/utils/format'
 
@@ -103,6 +104,8 @@ export function ProductFormPage() {
 
   const upload = async (files: FileList | null) => {
     if (!productId || !files?.length) return
+    // Only one image may be primary, including across a multi-file upload.
+    let hasPrimary = images.some((image) => image.is_primary)
     for (const file of Array.from(files)) {
       if (!ALLOWED_TYPES.includes(file.type)) {
         toast.error(`${file.name}: unsupported file type.`)
@@ -113,8 +116,9 @@ export function ProductFormPage() {
         continue
       }
       try {
-        const created = await catalogService.uploadImage(productId, file, { is_primary: images.length === 0 })
+        const created = await catalogService.uploadImage(productId, file, { is_primary: !hasPrimary })
         setImages((prev) => [...prev, created])
+        if (created.is_primary) hasPrimary = true
         toast.success('Image uploaded.')
       } catch (err) {
         toast.error(serverErrorMessage(err))
@@ -307,7 +311,7 @@ export function ProductFormPage() {
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {images.map((image) => (
                   <div key={image.id} className="group relative overflow-hidden rounded-card border border-line bg-muted">
-                    <img src={image.image_url} alt={image.alt_text} className="aspect-square w-full object-cover" />
+                    <AppImage src={image.image_url} alt={image.alt_text} productId={productId} imageId={image.id} className="aspect-square w-full object-cover" />
                     {image.is_primary && (
                       <span className="absolute left-2 top-2 rounded-full bg-lime px-2 py-0.5 text-[10px] font-semibold text-[var(--pos)]">Primary</span>
                     )}

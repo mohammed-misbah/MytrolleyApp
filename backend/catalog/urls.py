@@ -14,6 +14,7 @@ from catalog.public_views import (
 from catalog.views import (
     CategoryDetailView,
     CategoryListCreateView,
+    DashboardSummaryView,
     ProductAttributeDetailView,
     ProductAttributeListCreateView,
     ProductDetailView,
@@ -29,6 +30,8 @@ from catalog.views import (
 app_name = "catalog"
 
 urlpatterns = [
+    # Bounded-cost dashboard aggregation (JWT + manage_catalog permission)
+    path("dashboard/summary/", DashboardSummaryView.as_view(), name="dashboard-summary"),
     # Anonymous, read-only customer catalogue (no JWT, no admin permissions)
     path("public/stores/", PublicStoreListView.as_view(), name="public-store-list"),
     path("public/categories/", PublicCategoryListView.as_view(), name="public-category-list"),

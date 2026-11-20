@@ -9,7 +9,9 @@ from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from PIL import Image
 
+from catalog.models import Category, Product, ProductImage
 from catalog.serializers import ProductImageWriteSerializer
+from tests.conftest import access_token, auth_header, login, make_user
 
 MB = 1_048_576
 
@@ -48,3 +50,27 @@ def test_invalid_image_format_is_still_rejected() -> None:
     serializer = ProductImageWriteSerializer(data={"image": upload})
     assert not serializer.is_valid()
     assert "image" in serializer.errors
+
+
+def test_eleventh_image_is_rejected(db, client) -> None:
+    make_user("image_admin", role="Administrator", is_staff=True)
+    token = access_token(login(client, "image_admin", "Correct-Horse-42!"))
+    category = Category.objects.create(name="Image Limit", slug="image-limit")
+    product = Product.objects.create(
+        name="Limited Product", slug="limited-product", category=category
+    )
+    for index in range(10):
+        ProductImage.objects.create(
+            product=product,
+            image=f"products/{product.pk}/images/{index}.png",
+            is_primary=index == 0,
+        )
+
+    response = client.post(
+        f"/api/v1/products/{product.pk}/images/",
+        {"image": _png(1024, name="eleventh.png")},
+        **auth_header(token),
+    )
+    assert response.status_code == 400
+    assert "at most 10 images" in response.json()["error"]["message"]
+    assert product.images.count() == 10
