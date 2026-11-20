@@ -4,8 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { Eye, EyeOff, Lock, User } from 'lucide-react'
 import { toast } from 'sonner'
-import logo from '@/assets/mytrolley_logo_brand.png'
-import tcart from '@/assets/MyTrolley_T-cart_icon.png'
+import logo from '@/assets/mytrolley_logo_original.png'
 import { useAuth } from '@/hooks/useAuth'
 import { toError } from '@/services/apiClient'
 import { loginSchema, type LoginValues } from '@/schemas'
@@ -43,268 +42,231 @@ export function LoginPage() {
   return (
     <div className="mt-login">
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&display=swap');
+
         .mt-login {
-          position: relative;
-          width: 100vw;
-          height: 100vh;
-          overflow: hidden;
-          background: #D8D8D8;
-          font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-        }
-        .mt-login-panel {
-          position: absolute;
-          inset: 0;
-          background: #0E3D28;
-          clip-path: polygon(50.8% 0, 100% 0, 100% 100%, 30% 100%);
-        }
-        .mt-login-cart {
-          position: absolute;
-          right: 3vw;
-          bottom: 4vh;
-          width: min(42vw, 76vh);
-          height: auto;
-          object-fit: contain;
-          z-index: 1;
-          filter: drop-shadow(0 30px 60px rgba(0,0,0,.35));
-        }
-        .mt-login-logo {
-          position: absolute;
-          left: 5.3vw;
-          top: 5vh;
-          width: 220px;
-          height: auto;
-          object-fit: contain;
-          z-index: 3;
-        }
-        .mt-login-card {
-          position: absolute;
-          left: 3.6vw;
-          top: 20.8vh;
-          width: 39.5vw;
-          min-width: 440px;
-          max-width: 760px;
-          min-height: 70vh;
-          padding: 56px 48px;
-          border-radius: 48px;
-          z-index: 2;
-          background: rgba(255,255,255,.18);
-          backdrop-filter: blur(22px);
-          -webkit-backdrop-filter: blur(22px);
-          border: 1px solid rgba(255,255,255,.35);
-          box-shadow: 0 20px 60px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.5);
           box-sizing: border-box;
+          width: 100%;
+          min-height: 100vh;
+          min-height: 100dvh;
+          background-color: #17382F;
+          background-image: url('/assets/login-bg.png');
+          background-size: cover;
+          background-position: center;
+          background-repeat: no-repeat;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 24px;
+          overflow: hidden;
+          font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+          color: #FFFFFF;
+          -webkit-font-smoothing: antialiased;
+          text-rendering: optimizeLegibility;
         }
-        .mt-login-title {
-          margin: 0 0 56px;
-          text-align: center;
-          font-size: 40px;
-          font-weight: 600;
-          color: #111111;
-          letter-spacing: -.5px;
+        .mt-login *, .mt-login *::before, .mt-login *::after { box-sizing: border-box; }
+
+        .mt-login-card {
+          width: 460px;
+          max-width: calc(100vw - 32px);
+          padding: 40px 40px 36px;
+          border-radius: 28px;
+          display: flex;
+          flex-direction: column;
+          background: linear-gradient(145deg, rgba(255,255,255,.12) 0%, rgba(255,255,255,.04) 100%);
+          backdrop-filter: blur(16px) saturate(120%);
+          -webkit-backdrop-filter: blur(16px) saturate(120%);
+          border: 1px solid rgba(255,255,255,.18);
+          box-shadow: 0 24px 70px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.22);
         }
+
+        .mt-login-logo {
+          width: 190px;
+          height: auto;
+          display: block;
+          align-self: center;
+        }
+
         .mt-login-subtitle {
-          margin: -40px 0 28px;
+          margin: 24px 0 0;
+          font-size: 14.5px;
+          font-weight: 400;
+          letter-spacing: .01em;
+          line-height: 1.4;
           text-align: center;
-          font-size: 14px;
-          color: #111111;
+          color: rgba(255,255,255,.72);
         }
+
+        .mt-login-form {
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+        }
+
         .mt-login-label {
           display: block;
-          margin: 0 0 10px;
-          font-size: 14px;
-          font-weight: 600;
-          color: #111111;
+          font-size: 13px;
+          font-weight: 500;
+          color: rgba(255,255,255,.88);
         }
-        .mt-login-fieldwrap { position: relative; margin-bottom: 28px; }
+        .mt-login-label-username { margin: 30px 0 8px; }
+        .mt-login-label-password { margin: 20px 0 8px; }
+
+        .mt-login-field {
+          height: 56px;
+          border-radius: 14px;
+          background: rgba(255,255,255,.08);
+          border: 1px solid rgba(255,255,255,.18);
+          padding: 0 18px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          transition: border-color .15s ease, box-shadow .15s ease;
+        }
+        .mt-login-field:focus-within {
+          border-color: rgba(255,255,255,.55);
+          box-shadow: 0 0 0 4px rgba(255,255,255,.10);
+        }
         .mt-login-icon {
-          position: absolute;
-          left: 32px;
-          top: 50%;
-          transform: translateY(-50%);
-          color: #7A7A7A;
-          pointer-events: none;
+          flex: none;
+          color: rgba(255,255,255,.85);
+          stroke-linecap: round;
+          stroke-linejoin: round;
         }
         .mt-login-input {
+          flex: 1 1 auto;
+          min-width: 0;
           width: 100%;
-          height: 64px;
+          height: 100%;
+          padding: 0;
+          margin: 0;
+          background: transparent;
           border: none;
-          border-radius: 20px;
-          background: #C9C9C9;
-          padding: 0 32px 0 64px;
-          font-size: 18px;
-          color: #7A7A7A;
-          box-shadow: inset 0 2px 4px rgba(0,0,0,.08), 0 1px 0 rgba(255,255,255,.5);
           outline: none;
-          box-sizing: border-box;
-        }
-        .mt-login-input::placeholder { color: #7A7A7A; }
-        .mt-login-input:focus { outline: 2px solid rgba(14,61,40,.55); }
-        .mt-login-eye {
-          position: absolute;
-          right: 24px;
-          top: 50%;
-          transform: translateY(-50%);
-          background: none;
-          border: none;
-          padding: 0;
-          color: #6A6A6A;
-          cursor: pointer;
-        }
-        .mt-login-forgot {
-          display: block;
-          margin-top: 10px;
-          font-size: 14px;
-          color: #777777;
-          text-decoration: underline;
-        }
-        .mt-login-error {
-          margin-bottom: 10px;
-          border-radius: 12px;
-          padding: 10px 14px;
-          font-size: 14px;
-          color: #111111;
-          background: rgba(0,0,0,.06);
-        }
-        .mt-login-submit {
-          display: block;
-          width: 200px;
-          height: 56px;
-          margin: 22px auto 0;
-          border: none;
-          border-radius: 999px;
-          background: #0E3D28;
-          color: #FFFFFF;
+          font-family: inherit;
           font-size: 16px;
-          font-weight: 600;
-          cursor: pointer;
-          box-shadow: 0 10px 24px rgba(14,61,40,.35), inset 0 1px 0 rgba(255,255,255,.12);
+          font-weight: 500;
+          color: #FFFFFF;
         }
-        .mt-login-submit:hover { background: #124A31; }
-        .mt-login-submit:disabled { opacity: .6; cursor: default; }
-        .mt-login-signup {
-          display: block;
-          margin: 18px auto 0;
-          text-align: center;
-          font-size: 15px;
-          color: #3B6FE0;
-          text-decoration: underline;
-        }
-        .mt-login-social {
-          display: flex;
+        .mt-login-input::placeholder { color: rgba(255,255,255,.60); opacity: 1; }
+        .mt-login-input[type='password'] { letter-spacing: 2px; }
+        .mt-login-eye {
+          margin-left: auto;
+          flex: none;
+          display: inline-flex;
+          align-items: center;
           justify-content: center;
-          gap: 28px;
-          margin-top: 22px;
-        }
-        .mt-login-social button {
-          width: 28px;
-          height: 28px;
-          border: none;
-          background: none;
           padding: 0;
-          font-size: 22px;
-          font-weight: 700;
-          cursor: default;
+          background: none;
+          border: none;
+          color: rgba(255,255,255,.85);
+          cursor: pointer;
         }
-        .mt-login-google { color: #4285F4; }
-        .mt-login-facebook { color: #1877F2; }
-        .mt-login-hidden { display: none; }
-        @media (max-width: 1023px) {
-          .mt-login-panel, .mt-login-cart { display: none; }
-          .mt-login-logo {
-            left: 50%;
-            transform: translateX(-50%);
-            top: 4vh;
-          }
+
+        .mt-login-submit {
+          width: 100%;
+          height: 58px;
+          margin-top: 26px;
+          border-radius: 999px;
+          font-family: inherit;
+          font-size: 17px;
+          font-weight: 600;
+          letter-spacing: .2px;
+          color: #FFFFFF;
+          background: linear-gradient(180deg, rgba(255,255,255,.28) 0%, rgba(255,255,255,.14) 100%);
+          border: 1px solid rgba(255,255,255,.32);
+          box-shadow: 0 10px 26px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.35);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          cursor: pointer;
+        }
+        .mt-login-submit:hover {
+          background: linear-gradient(180deg, rgba(255,255,255,.36) 0%, rgba(255,255,255,.20) 100%);
+        }
+        .mt-login-submit:active { transform: translateY(1px); }
+        .mt-login-submit:disabled { opacity: .6; cursor: default; }
+        .mt-login-spinner {
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          border: 2px solid rgba(255,255,255,.45);
+          border-top-color: #FFFFFF;
+          animation: mt-login-spin .7s linear infinite;
+        }
+        @keyframes mt-login-spin { to { transform: rotate(360deg); } }
+
+        .mt-login-error {
+          margin: 14px 0 0;
+          text-align: center;
+          font-size: 13.5px;
+          font-weight: 400;
+          color: #FFC2C2;
+        }
+
+        @media (max-width: 639px) {
           .mt-login-card {
-            left: 50%;
-            top: 18vh;
-            transform: translateX(-50%);
             width: calc(100% - 32px);
-            min-width: 0;
-            max-width: 520px;
-            min-height: 0;
-            padding: 36px 28px;
+            padding: 30px 22px;
           }
-          .mt-login-title { font-size: 32px; margin-bottom: 36px; }
-          .mt-login-subtitle { margin-top: -28px; }
+          .mt-login-logo { width: 160px; }
+          .mt-login-field { height: 52px; }
         }
       `}</style>
 
-      <div className="mt-login-panel">
-        <img src={tcart} alt="" className="mt-login-cart" />
-      </div>
-
-      <img src={logo} alt="MY Trolley" className="mt-login-logo" />
-
-      <div className="mt-login-hidden">
-        <div>Everything for you.</div>
-        <h2>Product management, beautifully organised.</h2>
-        <p>
-          Manage products, categories, stores and store-specific inventory from one premium workspace
-          built for the MY Trolley team.
-        </p>
-        <p>© {new Date().getFullYear()} MY Trolley</p>
-      </div>
-
       <div className="mt-login-card">
-        <h1 className="mt-login-title">Welcome back</h1>
+        <img src={logo} alt="MY Trolley" className="mt-login-logo" />
+
         <p className="mt-login-subtitle">Sign in to access the admin dashboard.</p>
 
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <label className="mt-login-label" htmlFor="mt-login-username">Username</label>
-          <div className="mt-login-fieldwrap">
-            <User className="mt-login-icon" size={18} strokeWidth={1.8} />
-            <input
-              id="mt-login-username"
-              type="text"
-              className="mt-login-input"
-              placeholder="Your username"
-              autoComplete="username"
-              {...register('username')}
-            />
-          </div>
+        <form className="mt-login-form" onSubmit={handleSubmit(onSubmit)} noValidate>
+        <label className="mt-login-label mt-login-label-username" htmlFor="mt-login-username">
+          Username
+        </label>
+        <div className="mt-login-field">
+          <User className="mt-login-icon" size={20} strokeWidth={1.8} />
+          <input
+            id="mt-login-username"
+            type="text"
+            className="mt-login-input"
+            placeholder="Your username"
+            autoComplete="username"
+            {...register('username')}
+          />
+        </div>
 
-          <label className="mt-login-label" htmlFor="mt-login-password">Password</label>
-          <div className="mt-login-fieldwrap">
-            <Lock className="mt-login-icon" size={18} strokeWidth={1.8} />
-            <input
-              id="mt-login-password"
-              type={showPassword ? 'text' : 'password'}
-              className="mt-login-input"
-              placeholder="••••••••"
-              autoComplete="current-password"
-              {...register('password')}
-            />
-            <button
-              type="button"
-              className="mt-login-eye"
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-              onClick={() => setShowPassword((value) => !value)}
-            >
-              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
-          </div>
-
-          <a className="mt-login-forgot" href="#" onClick={(event) => event.preventDefault()}>
-            forgot password
-          </a>
-
-          {errors.root?.message && (
-            <p className="mt-login-error">{errors.root.message}</p>
-          )}
-
-          <button type="submit" className="mt-login-submit" disabled={submitting}>
-            {submitting ? 'Signing in…' : 'Sign in'}
+        <label className="mt-login-label mt-login-label-password" htmlFor="mt-login-password">
+          Password
+        </label>
+        <div className="mt-login-field">
+          <Lock className="mt-login-icon" size={20} strokeWidth={1.8} />
+          <input
+            id="mt-login-password"
+            type={showPassword ? 'text' : 'password'}
+            className="mt-login-input"
+            placeholder="••••••••"
+            autoComplete="current-password"
+            {...register('password')}
+          />
+          <button
+            type="button"
+            className="mt-login-eye"
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            onClick={() => setShowPassword((value) => !value)}
+          >
+            {showPassword ? <EyeOff size={20} strokeWidth={1.8} /> : <Eye size={20} strokeWidth={1.8} />}
           </button>
+        </div>
 
-          <a className="mt-login-signup" href="#" onClick={(event) => event.preventDefault()}>
-            Sign up
-          </a>
+        <button type="submit" className="mt-login-submit" disabled={submitting}>
+          {submitting && <span className="mt-login-spinner" aria-hidden="true" />}
+          Sign in
+        </button>
 
-          <div className="mt-login-social">
-            <button type="button" className="mt-login-google" aria-label="Google">G</button>
-            <button type="button" className="mt-login-facebook" aria-label="Facebook">f</button>
-          </div>
+        {errors.root?.message && (
+          <p className="mt-login-error">{errors.root.message}</p>
+        )}
         </form>
       </div>
     </div>
