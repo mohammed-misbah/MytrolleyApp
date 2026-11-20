@@ -10,8 +10,6 @@ import {
   X,
   ChevronsLeft,
   ChevronsRight,
-  Sun,
-  Moon,
 } from 'lucide-react'
 import logo from '@/assets/mytrolley_logo_brand.png'
 import { cn } from '@/utils/cn'
@@ -39,25 +37,6 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
     >
       {children}
     </p>
-  )
-}
-
-function SegmentedToggle() {
-  return (
-    <div
-      className="mb-4 flex rounded-[12px] border border-[rgba(255,255,255,.06)] p-1"
-      style={{ background: 'var(--glass-bg)' }}
-    >
-      <div
-        className="flex flex-1 items-center justify-center gap-[7px] rounded-[9px] py-2 text-[12.5px] text-[var(--text-1)]"
-        style={{ background: 'linear-gradient(145deg,#1B4630,#14352A)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,.08)' }}
-      >
-        <Sun className="h-[15px] w-[15px]" strokeWidth={1.8} /> Light
-      </div>
-      <div className="flex flex-1 items-center justify-center gap-[7px] rounded-[9px] py-2 text-[12.5px] text-[var(--text-2)]">
-        <Moon className="h-[15px] w-[15px]" strokeWidth={1.8} /> Dark
-      </div>
-    </div>
   )
 }
 
@@ -175,7 +154,6 @@ export function Sidebar({
       </nav>
 
       <div className="flex-1" />
-      {!collapsed && <SegmentedToggle />}
       <div
         className="flex items-center gap-3 rounded-[16px] border border-[rgba(255,255,255,.06)] p-[14px]"
         style={{ background: 'var(--tile-bg)' }}
