@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import { ImagePlus, Star, Trash2, Plus, ArrowLeft, Save } from 'lucide-react'
 import { toast } from 'sonner'
-import type { AttributeWrite, AssociationWrite, Category, ProductDetail, ProductImage, ProductStore, Store } from '@/types'
+import type { AttributeWrite, AssociationWrite, Category, Store } from '@/types'
 import { catalogService } from '@/services/catalogService'
 import { toError } from '@/services/apiClient'
 import { applyServerErrors, serverErrorMessage } from '@/utils/formErrors'
@@ -17,7 +17,24 @@ import { attributeSchema, associationSchema, productSchema, type AttributeValues
 import { formatMoney } from '@/utils/format'
 
 const MAX_BYTES = 1_048_576
+const MAX_IMAGES = 10
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+
+type DraftImage = {
+  id?: number
+  image_url: string
+  alt_text: string
+  is_primary: boolean
+  file?: File
+}
+type DraftAttribute = { id?: number; name: string; value: string }
+type DraftAssociation = {
+  id?: number
+  store: Store
+  price: string
+  quantity: number
+  is_available: boolean
+}
 
 export function ProductFormPage() {
   const { id } = useParams()
@@ -27,17 +44,18 @@ export function ProductFormPage() {
 
   const [categories, setCategories] = useState<Category[]>([])
   const [stores, setStores] = useState<Store[]>([])
-  const [images, setImages] = useState<ProductImage[]>([])
-  const [attributes, setAttributes] = useState<ProductDetail['attributes']>([])
-  const [associations, setAssociations] = useState<ProductStore[]>([])
+  const [images, setImages] = useState<DraftImage[]>([])
+  const [attributes, setAttributes] = useState<DraftAttribute[]>([])
+  const [associations, setAssociations] = useState<DraftAssociation[]>([])
+  const objectUrls = useRef<string[]>([])
   const [loading, setLoading] = useState(Boolean(productId))
   const [saving, setSaving] = useState(false)
   const [attributeOpen, setAttributeOpen] = useState(false)
   const [associationOpen, setAssociationOpen] = useState(false)
   const [editingAttribute, setEditingAttribute] = useState<number | null>(null)
   const [editingAssociation, setEditingAssociation] = useState<number | null>(null)
-  const [deleteImage, setDeleteImage] = useState<ProductImage | null>(null)
-  const [deleteAssociation, setDeleteAssociation] = useState<ProductStore | null>(null)
+  const [deleteImage, setDeleteImage] = useState<DraftImage | null>(null)
+  const [deleteAssociation, setDeleteAssociation] = useState<DraftAssociation | null>(null)
 
   const {
     register,
@@ -81,6 +99,8 @@ export function ProductFormPage() {
     void catalogService.listStores().then(setStores).catch(() => undefined)
   }, [load])
 
+  useEffect(() => () => objectUrls.current.forEach((url) => URL.revokeObjectURL(url)), [])
+
   const onSave = async (values: ProductValues) => {
     setSaving(true)
     try {
@@ -89,8 +109,46 @@ export function ProductFormPage() {
         toast.success('Product updated.')
         await load()
       } else {
-        const created = await catalogService.createProduct(values)
-        toast.success('Product created. You can now add images, attributes and stores.')
+        const storeIds = associations.map((item) => item.store.id)
+        const attributeNames = attributes.map((item) => item.name.trim().toLowerCase())
+        if (images.length > MAX_IMAGES) {
+          toast.error(`Upload at most ${MAX_IMAGES} images.`)
+          return
+        }
+        if (new Set(storeIds).size !== storeIds.length) {
+          toast.error('Each store can only be added once.')
+          return
+        }
+        if (new Set(attributeNames).size !== attributeNames.length) {
+          toast.error('Attribute names must be unique.')
+          return
+        }
+        const form = new FormData()
+        form.append('name', values.name)
+        form.append('description', values.description || '')
+        form.append('category_id', String(values.category_id))
+        form.append('is_active', String(values.is_active))
+        form.append(
+          'attributes',
+          JSON.stringify(attributes.map(({ name, value }) => ({ name, value }))),
+        )
+        form.append(
+          'stores',
+          JSON.stringify(
+            associations.map((association) => ({
+              store_id: association.store.id,
+              price: association.price,
+              quantity: association.quantity,
+              is_available: association.is_available,
+            })),
+          ),
+        )
+        images.forEach((image) => {
+          if (image.file) form.append('images', image.file)
+        })
+        const created = await catalogService.createProductWithRelations(form)
+        objectUrls.current = []
+        toast.success('Product created with images, attributes and store pricing.')
         navigate(`/products/${created.id}/edit`, { replace: true })
       }
     } catch (err) {
@@ -103,7 +161,41 @@ export function ProductFormPage() {
   }
 
   const upload = async (files: FileList | null) => {
-    if (!productId || !files?.length) return
+    if (!files?.length) return
+    if (!productId) {
+      if (images.length + files.length > MAX_IMAGES) {
+        toast.error(`Upload at most ${MAX_IMAGES} images.`)
+      } else {
+        const drafts: DraftImage[] = []
+        for (const file of Array.from(files)) {
+          if (!ALLOWED_TYPES.includes(file.type)) {
+            toast.error(`${file.name}: unsupported file type.`)
+            continue
+          }
+          if (file.size > MAX_BYTES) {
+            toast.error('File exceeds the 1 MB limit.')
+            continue
+          }
+          const url = URL.createObjectURL(file)
+          objectUrls.current.push(url)
+          drafts.push({
+            image_url: url,
+            alt_text: file.name,
+            is_primary: false,
+            file,
+          })
+        }
+        // Only the first image in the whole gallery is primary.
+        drafts.forEach((draft, index) => {
+          draft.is_primary = images.length === 0 && index === 0
+        })
+        setImages((prev) => [...prev, ...drafts])
+        if (drafts.length) toast.success(`${drafts.length} image${drafts.length === 1 ? '' : 's'} added.`)
+      }
+      if (fileRef.current) fileRef.current.value = ''
+      return
+    }
+
     // Only one image may be primary, including across a multi-file upload.
     let hasPrimary = images.some((image) => image.is_primary)
     for (const file of Array.from(files)) {
@@ -127,7 +219,11 @@ export function ProductFormPage() {
     if (fileRef.current) fileRef.current.value = ''
   }
 
-  const makePrimary = async (image: ProductImage) => {
+  const makePrimary = async (image: DraftImage) => {
+    if (!image.id) {
+      setImages((prev) => prev.map((item) => ({ ...item, is_primary: item === image })))
+      return
+    }
     if (!productId) return
     try {
       const updated = await catalogService.updateImage(productId, image.id, { is_primary: true })
@@ -139,7 +235,18 @@ export function ProductFormPage() {
   }
 
   const confirmDeleteImage = async () => {
-    if (!productId || !deleteImage) return
+    if (!deleteImage) return
+    if (!deleteImage.id) {
+      URL.revokeObjectURL(deleteImage.image_url)
+      objectUrls.current = objectUrls.current.filter((url) => url !== deleteImage.image_url)
+      setImages((prev) => prev.filter((item) => item !== deleteImage))
+      if (deleteImage.is_primary) {
+        setImages((prev) => prev.map((item, index) => ({ ...item, is_primary: index === 0 })))
+      }
+      setDeleteImage(null)
+      return
+    }
+    if (!productId) return
     try {
       await catalogService.deleteImage(productId, deleteImage.id)
       setImages((prev) => prev.filter((i) => i.id !== deleteImage.id))
@@ -151,7 +258,23 @@ export function ProductFormPage() {
   }
 
   const saveAttribute = async (values: AttributeValues) => {
-    if (!productId) return
+    if (!productId) {
+      if (editingAttribute) {
+        setAttributes((prev) =>
+          prev.map((item) =>
+            item.id === editingAttribute ? { ...item, ...values } : item,
+          ),
+        )
+      } else {
+        setAttributes((prev) => [
+          ...prev,
+          { id: -(Date.now() + prev.length), name: values.name, value: values.value },
+        ])
+      }
+      setAttributeOpen(false)
+      setEditingAttribute(null)
+      return
+    }
     if (editingAttribute) {
       const updated = await catalogService.updateAttribute(productId, editingAttribute, values)
       setAttributes((prev) => prev.map((a) => (a.id === updated.id ? updated : a)))
@@ -166,7 +289,10 @@ export function ProductFormPage() {
   }
 
   const deleteAttributeRow = async (id: number) => {
-    if (!productId) return
+    if (!productId) {
+      setAttributes((prev) => prev.filter((item) => item.id !== id))
+      return
+    }
     try {
       await catalogService.deleteAttribute(productId, id)
       setAttributes((prev) => prev.filter((a) => a.id !== id))
@@ -177,7 +303,28 @@ export function ProductFormPage() {
   }
 
   const saveAssociation = async (values: AssociationValues) => {
-    if (!productId) return
+    const store = stores.find((item) => item.id === Number(values.store_id))
+    if (!productId) {
+      if (!store) {
+        toast.error('Select a valid store.')
+        return
+      }
+      const draft: DraftAssociation = {
+        id: editingAssociation ?? -(Date.now() + associations.length),
+        store,
+        price: String(values.price),
+        quantity: Number(values.quantity),
+        is_available: Boolean(values.is_available),
+      }
+      setAssociations((prev) =>
+        editingAssociation
+          ? prev.map((item) => (item.id === editingAssociation ? draft : item))
+          : [...prev, draft],
+      )
+      setAssociationOpen(false)
+      setEditingAssociation(null)
+      return
+    }
     const payload: AssociationWrite = {
       store_id: Number(values.store_id),
       price: String(values.price),
@@ -198,7 +345,13 @@ export function ProductFormPage() {
   }
 
   const confirmDeleteAssociation = async () => {
-    if (!productId || !deleteAssociation) return
+    if (!deleteAssociation) return
+    if (!deleteAssociation.id || deleteAssociation.id < 0) {
+      setAssociations((prev) => prev.filter((item) => item.id !== deleteAssociation.id))
+      setDeleteAssociation(null)
+      return
+    }
+    if (!productId) return
     try {
       await catalogService.deleteAssociation(productId, deleteAssociation.id)
       setAssociations((prev) => prev.filter((a) => a.id !== deleteAssociation.id))
@@ -220,7 +373,7 @@ export function ProductFormPage() {
         <div>
           <h2 className="text-xl font-semibold text-ink">{productId ? 'Edit product' : 'New product'}</h2>
           <p className="text-sm text-subtle">
-            {productId ? 'Update details, images, attributes and store pricing.' : 'Create the product, then add images and store pricing.'}
+            {productId ? 'Update details, images, attributes and store pricing.' : 'Add images, attributes and store pricing, then create everything in one step.'}
           </p>
         </div>
       </div>
@@ -270,20 +423,18 @@ export function ProductFormPage() {
           <section className="rounded-card border border-line bg-white p-5 shadow-card">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-ink">Attributes</h3>
-              <Button type="button" size="sm" variant="outline" disabled={!productId} onClick={() => { setEditingAttribute(null); setAttributeOpen(true) }}>
+              <Button type="button" size="sm" variant="outline" onClick={() => { setEditingAttribute(null); setAttributeOpen(true) }}>
                 <Plus className="h-3.5 w-3.5" /> Add attribute
               </Button>
             </div>
-            {!productId ? (
-              <p className="text-xs text-subtle">Save the product first to add attributes.</p>
-            ) : attributes.length ? (
+            {attributes.length ? (
               <div className="divide-y divide-line">
                 {attributes.map((a) => (
-                  <div key={a.id} className="flex items-center justify-between py-2.5 text-sm">
+                  <div key={a.id ?? a.name} className="flex items-center justify-between py-2.5 text-sm">
                     <span><span className="font-medium">{a.name}</span>: {a.value}</span>
                     <div className="flex gap-1">
-                      <Button type="button" variant="ghost" size="sm" onClick={() => { setEditingAttribute(a.id); setAttributeOpen(true) }}>Edit</Button>
-                      <Button type="button" variant="ghost" size="icon" onClick={() => void deleteAttributeRow(a.id)}>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => { setEditingAttribute(a.id ?? null); setAttributeOpen(true) }}>Edit</Button>
+                      <Button type="button" variant="ghost" size="icon" onClick={() => void deleteAttributeRow(a.id ?? 0)}>
                         <Trash2 className="h-4 w-4 text-[var(--danger)]" />
                       </Button>
                     </div>
@@ -300,18 +451,16 @@ export function ProductFormPage() {
           <section className="rounded-card border border-line bg-white p-5 shadow-card">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-ink">Product images</h3>
-              <Button type="button" size="sm" variant="outline" disabled={!productId} onClick={() => fileRef.current?.click()}>
+              <Button type="button" size="sm" variant="outline" onClick={() => fileRef.current?.click()}>
                 <ImagePlus className="h-3.5 w-3.5" /> Upload
               </Button>
               <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => void upload(e.target.files)} />
             </div>
-            {!productId ? (
-              <p className="text-xs text-subtle">Save the product first to upload images.</p>
-            ) : images.length ? (
+            {images.length ? (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {images.map((image) => (
-                  <div key={image.id} className="group relative overflow-hidden rounded-card border border-line bg-muted">
-                    <AppImage src={image.image_url} alt={image.alt_text} productId={productId} imageId={image.id} className="aspect-square w-full object-cover" />
+                  <div key={image.id ?? image.image_url} className="group relative overflow-hidden rounded-card border border-line bg-muted">
+                    <AppImage src={image.image_url} alt={image.alt_text} productId={productId ?? undefined} imageId={image.id} className="aspect-square w-full object-cover" />
                     {image.is_primary && (
                       <span className="absolute left-2 top-2 rounded-full bg-lime px-2 py-0.5 text-[10px] font-semibold text-[var(--pos)]">Primary</span>
                     )}
@@ -341,22 +490,20 @@ export function ProductFormPage() {
                 <h3 className="text-sm font-semibold text-ink">Store pricing & inventory</h3>
                 <p className="text-xs text-subtle">Each store has its own price and quantity.</p>
               </div>
-              <Button type="button" size="sm" variant="outline" disabled={!productId} onClick={() => { setEditingAssociation(null); setAssociationOpen(true) }}>
+              <Button type="button" size="sm" variant="outline" onClick={() => { setEditingAssociation(null); setAssociationOpen(true) }}>
                 <Plus className="h-3.5 w-3.5" /> Add store
               </Button>
             </div>
-            {!productId ? (
-              <p className="text-xs text-subtle">Save the product first to associate stores.</p>
-            ) : associations.length ? (
+            {associations.length ? (
               <div className="space-y-2">
                 {associations.map((a) => (
-                  <div key={a.id} className="flex items-center justify-between rounded-control border border-line px-3 py-2.5">
+                  <div key={a.id ?? a.store.id} className="flex items-center justify-between rounded-control border border-line px-3 py-2.5">
                     <div>
                       <p className="text-sm font-medium text-ink">{a.store.name} <span className="text-xs text-subtle">({a.store.code})</span></p>
                       <p className="text-xs text-subtle">{formatMoney(a.price)} · Qty {a.quantity} · {a.is_available ? 'Available' : 'Unavailable'}</p>
                     </div>
                     <div className="flex gap-1">
-                      <Button type="button" size="sm" variant="ghost" onClick={() => { setEditingAssociation(a.id); setAssociationOpen(true) }}>Edit</Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={() => { setEditingAssociation(a.id ?? null); setAssociationOpen(true) }}>Edit</Button>
                       <Button type="button" size="icon" variant="ghost" onClick={() => setDeleteAssociation(a)}>
                         <Trash2 className="h-4 w-4 text-[var(--danger)]" />
                       </Button>
@@ -419,7 +566,7 @@ function AttributeDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  initial?: { id: number; name: string; value: string }
+  initial?: DraftAttribute
   onSave: (values: AttributeValues) => Promise<void>
 }) {
   const { register, handleSubmit, reset, setError, formState: { errors } } = useForm<AttributeValues>({
@@ -467,7 +614,7 @@ function AssociationDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
   stores: Store[]
-  initial?: ProductStore
+  initial?: DraftAssociation
   onSave: (values: AssociationValues) => Promise<void>
 }) {
   const { register, handleSubmit, reset, setError, formState: { errors } } = useForm<AssociationValues>({
@@ -495,7 +642,7 @@ function AssociationDialog({
     <Dialog open={open} onOpenChange={onOpenChange} title={initial ? 'Edit store association' : 'Add store association'} description="Price and quantity apply only to this store.">
       <form onSubmit={handleSubmit(submit)} className="space-y-4">
         <Field label="Store" error={errors.store_id?.message}>
-          <Select {...register('store_id', { valueAsNumber: true })} disabled={Boolean(initial)}>
+          <Select {...register('store_id', { valueAsNumber: true })} disabled={Boolean(initial?.id && initial.id > 0)}>
             <option value={0}>Select a store</option>
             {stores.map((s) => (
               <option key={s.id} value={s.id}>{s.name} ({s.code})</option>

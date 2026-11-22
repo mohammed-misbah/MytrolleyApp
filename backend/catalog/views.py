@@ -22,6 +22,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import HasBusinessPermission
+from catalog.creation_service import create_product_with_relations
 from catalog.dashboard_service import build_dashboard_summary
 from catalog.image_storage import delete_stored_image_after_commit
 from catalog.models import Category, Product, ProductAttribute, ProductImage, ProductStore, Store
@@ -547,6 +548,53 @@ class ProductListCreateView(APIView):
         serializer = ProductWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         product = serializer.save()
+        return Response(
+            ProductDetailSerializer(
+                product,
+                context={"request": request, "store_product_counts": build_store_product_counts()},
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class ProductFullCreateView(APIView):
+    """Create a product and all of its related data in one atomic request."""
+
+    permission_classes = [IsAuthenticated, HasBusinessPermission]
+    permission_required = "accounts.manage_catalog"
+    parser_classes = [MultiPartParser, FormParser]
+
+    @extend_schema(
+        tags=["Products"],
+        summary="Create product with images, attributes and store pricing",
+        description="Create a complete product in a single atomic submission.",
+        request={
+            "multipart/form-data": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "description": {"type": "string"},
+                    "category_id": {"type": "integer"},
+                    "is_active": {"type": "boolean"},
+                    "attributes": {"type": "string", "description": "JSON list of {name, value}."},
+                    "stores": {
+                        "type": "string",
+                        "description": "JSON list of {store_id, price, quantity, is_available}.",
+                    },
+                    "images": {"type": "array", "items": {"type": "string", "format": "binary"}},
+                },
+            }
+        },
+        responses={
+            201: ProductDetailSerializer,
+            400: ErrorEnvelopeSerializer,
+            401: ErrorEnvelopeSerializer,
+            403: ErrorEnvelopeSerializer,
+        },
+    )
+    def post(self, request: Request) -> Response:
+        files = request.FILES.getlist("images")
+        product = create_product_with_relations(dict(request.data), files)
         return Response(
             ProductDetailSerializer(
                 product,

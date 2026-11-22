@@ -18,6 +18,7 @@ from catalog.views import (
     ProductAttributeDetailView,
     ProductAttributeListCreateView,
     ProductDetailView,
+    ProductFullCreateView,
     ProductImageDetailView,
     ProductImageListCreateView,
     ProductListCreateView,
@@ -50,6 +51,11 @@ urlpatterns = [
     path("stores/<int:pk>/", StoreDetailView.as_view(), name="store-detail"),
     # Products
     path("products/", ProductListCreateView.as_view(), name="product-list"),
+    path(
+        "products/create-with-relations/",
+        ProductFullCreateView.as_view(),
+        name="product-full-create",
+    ),
     path("products/<int:pk>/", ProductDetailView.as_view(), name="product-detail"),
     # Product Attributes
     path(

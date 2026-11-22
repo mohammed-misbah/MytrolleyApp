@@ -1,6 +1,5 @@
-import axios from 'axios'
-import { apiClient, multipartHeaders } from './apiClient'
-import { cachedGet, dedupGet, invalidateCache } from './requestCache'
+import { apiClient } from './apiClient'
+import { cachedGet, dedupGet } from './requestCache'
 import type {
   AssociationWrite,
   DashboardSummary,
@@ -18,8 +17,6 @@ import type {
   Store,
   StoreWrite,
 } from '@/types'
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
 function paramsFrom(filters: ProductFilters): Record<string, string | number | boolean> {
   const params: Record<string, string | number | boolean> = {}
@@ -70,6 +67,9 @@ export const catalogService = {
     dedupGet(`product:${id}`, async () => (await apiClient.get<ProductDetail>(`/products/${id}/`)).data),
   createProduct: async (body: ProductWrite): Promise<ProductDetail> =>
     (await apiClient.post<ProductDetail>('/products/', body)).data,
+  /** Atomic creation with images, attributes and store pricing in one request. */
+  createProductWithRelations: async (form: FormData): Promise<ProductDetail> =>
+    (await apiClient.post<ProductDetail>('/products/create-with-relations/', form)).data,
   updateProduct: async (id: number, body: Partial<ProductWrite>): Promise<ProductDetail> =>
     (await apiClient.patch<ProductDetail>(`/products/${id}/`, body)).data,
   deleteProduct: async (id: number): Promise<void> => {
@@ -89,41 +89,36 @@ export const catalogService = {
     await apiClient.delete(`/products/${productId}/attributes/${id}/`)
   },
 
-  // Images (multipart)
+  // Images (multipart — Authorization and the multipart boundary are added by apiClient)
   listImages: (productId: number): Promise<ProductImage[]> =>
     dedupGet(`images:${productId}`, async () =>
       (await apiClient.get<ProductImage[]>(`/products/${productId}/images/`)).data,
     ),
-  uploadImage: async (productId: number, file: File, meta?: Partial<Pick<ProductImage, 'alt_text' | 'display_order' | 'is_primary'>>): Promise<ProductImage> => {
+  uploadImage: async (
+    productId: number,
+    file: File,
+    meta?: Partial<Pick<ProductImage, 'alt_text' | 'display_order' | 'is_primary'>>,
+  ): Promise<ProductImage> => {
     const form = new FormData()
     form.append('image', file)
     if (meta?.alt_text) form.append('alt_text', meta.alt_text)
     if (meta?.display_order !== undefined) form.append('display_order', String(meta.display_order))
     if (meta?.is_primary !== undefined) form.append('is_primary', String(meta.is_primary))
-    const { data } = await axios.post<ProductImage>(
-      `${BASE_URL}/products/${productId}/images/`,
-      form,
-      { headers: { ...multipartHeaders(), 'Content-Type': 'multipart/form-data' } },
-    )
-    invalidateCache()
-    return data
+    return (await apiClient.post<ProductImage>(`/products/${productId}/images/`, form)).data
   },
-  updateImage: async (productId: number, id: number, meta: Partial<Pick<ProductImage, 'alt_text' | 'display_order' | 'is_primary'>>): Promise<ProductImage> => {
+  updateImage: async (
+    productId: number,
+    id: number,
+    meta: Partial<Pick<ProductImage, 'alt_text' | 'display_order' | 'is_primary'>>,
+  ): Promise<ProductImage> => {
     const form = new FormData()
     if (meta.alt_text !== undefined) form.append('alt_text', meta.alt_text)
     if (meta.display_order !== undefined) form.append('display_order', String(meta.display_order))
     if (meta.is_primary !== undefined) form.append('is_primary', String(meta.is_primary))
-    const { data } = await axios.patch<ProductImage>(
-      `${BASE_URL}/products/${productId}/images/${id}/`,
-      form,
-      { headers: { ...multipartHeaders(), 'Content-Type': 'multipart/form-data' } },
-    )
-    invalidateCache()
-    return data
+    return (await apiClient.patch<ProductImage>(`/products/${productId}/images/${id}/`, form)).data
   },
   deleteImage: async (productId: number, id: number): Promise<void> => {
     await apiClient.delete(`/products/${productId}/images/${id}/`)
-    invalidateCache()
   },
 
   // Product-store associations
