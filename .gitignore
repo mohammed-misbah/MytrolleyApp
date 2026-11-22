@@ -5,10 +5,7 @@ __pycache__/
 .venv/
 .venv312/
 venv/
-.agents/
-.opencode/
-.file/agents/
-django/skills/
+backend/products/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
