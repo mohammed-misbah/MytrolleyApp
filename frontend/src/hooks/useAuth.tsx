@@ -1,5 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { getAccessToken, notifyAuthChanged, setAccessToken, subscribeAuth } from '@/services/apiClient'
+import {
+  getAccessToken,
+  isTransientRefreshFailure,
+  notifyAuthChanged,
+  setAccessToken,
+  subscribeAuth,
+  toError,
+} from '@/services/apiClient'
 import { login as apiLogin, logout as apiLogout, me as apiMe, refreshSession } from '@/services/authService'
 import { setCacheScope } from '@/services/requestCache'
 import type { User } from '@/types'
@@ -26,7 +33,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!getAccessToken()) {
       // The refresh endpoint already returns the user payload, so a separate
       // /auth/me/ request is unnecessary on a fresh load.
-      refreshedUser = (await refreshSession())?.user ?? null
+      let outcome = await refreshSession()
+      if (!outcome.ok && isTransientRefreshFailure(outcome.kind)) {
+        // A transient startup failure must not log a valid session out.
+        await new Promise((resolve) => setTimeout(resolve, 400))
+        outcome = await refreshSession()
+      }
+      if (outcome.ok) refreshedUser = outcome.user
     }
     if (!getAccessToken()) {
       setUser(null)
@@ -36,10 +49,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setUser(refreshedUser ?? (await apiMe()))
       setToken(getAccessToken())
-    } catch {
-      setAccessToken(null)
-      setUser(null)
-      setToken(null)
+    } catch (err) {
+      // Only a definitive authentication failure ends the session. Network
+      // and other transient failures leave the user signed in.
+      if (toError(err).status === 401) {
+        setAccessToken(null)
+        setUser(null)
+        setToken(null)
+      }
     } finally {
       setLoading(false)
     }
